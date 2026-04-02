@@ -11,17 +11,367 @@ This implementation incorporates community-informed improvements (V3) drawn from
 
 ## Table of Contents
 
-1. [Algorithm Overview](#algorithm-overview)
-2. [Mathematical Foundation](#mathematical-foundation)
-3. [Implementation Architecture](#implementation-architecture)
-4. [Pseudocode](#pseudocode)
-5. [Compression Profiles](#compression-profiles)
-6. [Current Metrics](#current-metrics)
-7. [Advantages](#advantages)
-8. [Limitations](#limitations)
-9. [File Structure](#file-structure)
-10. [Usage](#usage)
-11. [Path to Production](#path-to-production)
+1. [Deviations from the Official Paper and Reference Implementation](#deviations-from-the-official-paper-and-reference-implementation)
+2. [Algorithm Overview](#algorithm-overview)
+3. [Mathematical Foundation](#mathematical-foundation)
+4. [Implementation Architecture](#implementation-architecture)
+5. [Pseudocode](#pseudocode)
+6. [Compression Profiles](#compression-profiles)
+7. [Current Metrics](#current-metrics)
+8. [Advantages](#advantages)
+9. [Limitations](#limitations)
+10. [File Structure](#file-structure)
+11. [Usage](#usage)
+12. [Path to Production](#path-to-production)
+
+---
+
+## Deviations from the Official Paper and Reference Implementation
+
+This section exhaustively documents every difference between our implementation
+and (a) the published paper, (b) the Google Research blog post, and (c) the
+reference PyTorch implementation at `tonbistudio/turboquant-pytorch`.
+
+Sources compared:
+
+- **Paper**: *"TurboQuant: Online Vector Quantization with Near-optimal Distortion Rate"*,
+  Zandieh et al., ICLR 2026, [arXiv:2504.19874](https://arxiv.org/abs/2504.19874)
+- **Blog**: [Google Research blog post](https://research.google/blog/turboquant-redefining-ai-efficiency-with-extreme-compression/) (March 24, 2026)
+- **Reference repo**: [tonbistudio/turboquant-pytorch](https://github.com/tonbistudio/turboquant-pytorch)
+
+### D1. Rotation matrix: Hadamard vs Haar-distributed orthogonal
+
+| | Paper (Alg 1, line 2) | Reference repo | Our implementation |
+|---|---|---|---|
+| Method | "Generate a random rotation matrix Π ∈ R^{d×d}" via QR decomposition of i.i.d. Gaussian matrix | `generate_rotation_matrix()`: QR of Gaussian matrix, matches paper | Randomized Hadamard: `fwht(x * signs)` where `signs` is a random ±1 vector |
+| Randomness | d² random Gaussian entries → O(d²) to generate | Same | d random sign bits → O(d) to generate |
+| Complexity | O(d²) matmul per rotate/unrotate | O(d²) | O(d log d) for compress (FWHT); O(d²) for decompress (precomputed dense matmul) |
+| Distribution | Haar-uniform on O(d) — exact uniform rotation | Same | Hadamard × diagonal signs — structured random, not Haar-uniform |
+
+**Impact**: The paper's theoretical guarantees (Theorem 1) are proven for
+Haar-distributed rotations. The Hadamard rotation achieves the same
+distributional concentration on coordinates for practical dimensions (d ≥ 64)
+but is not strictly Haar-uniform. All production implementations (SGLang,
+llama.cpp, QuaRot) use Hadamard. The paper's `generate_rotation_matrix()` is
+preserved as a legacy function in our `turboquant.py` but is not used by the
+active code paths.
+
+### D2. Quantization: `torch.bucketize` vs brute-force `argmin`
+
+| | Paper (Alg 1, line 6) | Reference repo | Our implementation |
+|---|---|---|---|
+| Method | `idx_j ← argmin_{k} \|y_j - c_k\|` | `diffs.abs().argmin(dim=-1)` | `torch.bucketize(y, boundaries)` |
+| Complexity | O(d × 2^b) per vector | Same | O(d × b) per vector (binary search) |
+
+**Impact**: Mathematically identical — both find the nearest centroid for each
+coordinate. Since centroids are sorted, the Voronoi partition boundaries are
+midpoints of consecutive centroids, and `bucketize` on those boundaries produces
+the same index mapping. Our approach is asymptotically faster, especially at
+higher bit-widths (4-bit: 16 comparisons → 4).
+
+### D3. Inverse rotation: precomputed matrix vs transpose
+
+| | Paper (Alg 1, line 10) | Reference repo | Our implementation |
+|---|---|---|---|
+| Method | `x̃ ← Π^T · ỹ` | `y @ self.Pi` (equivalent to Π^T since Pi is stored as Π) | `y @ self.Pi_inv` where `Pi_inv = H_d × signs` |
+| Storage | Store d×d rotation matrix | Same | Store d×d inverse rotation matrix |
+
+**Impact**: Mathematically equivalent. For the Hadamard case, the forward
+rotation is `y = FWHT(x * signs) = (H_d * diag(signs)) @ x / √d · √d = ...`.
+The inverse is `H_d × diag(signs)` (Hadamard is symmetric and self-inverse
+after normalization). We precompute this as a dense matrix so decompress can use
+a single cuBLAS `matmul`, which is faster than 7 sequential FWHT butterfly
+passes at d=128 on GPU.
+
+### D4. Norm storage precision: fp16 vs "floating-point"
+
+| | Paper | Reference repo | Our implementation |
+|---|---|---|---|
+| Norm precision | "floating-point precision" (unspecified, implies fp32) | `torch.float16` | `torch.float16` |
+
+**Impact**: The paper says "compute and store the L2 norms in floating-point
+precision." Both the reference and our implementation use fp16 to halve norm
+storage. This introduces a small rounding error on the norm (relative error up
+to ~0.1% for typical magnitudes) but saves 2 bytes per vector. For KV cache
+vectors with norms in the range 1-800, fp16 is adequate.
+
+### D5. Coordinate distribution: Gaussian approximation vs exact Beta
+
+| | Paper | Reference repo | Our implementation |
+|---|---|---|---|
+| PDF | Exact Beta: `f(x) = Γ(d/2) / (√π · Γ((d-1)/2)) · (1-x²)^((d-3)/2)` | Default: Gaussian N(0,1/d); exact Beta available via `use_exact=True` | Same as reference |
+
+**Impact**: The paper defines the exact Beta distribution and notes it "converges
+to the normal distribution N(0,1/d)" in high dimensions. Both the reference and
+our implementation default to the Gaussian approximation for the Lloyd-Max
+solver. This is accurate for d ≥ 64 (our target is d=128). The `beta_pdf`
+function is available but unused by default. The centroids and boundaries
+produced are identical to within ~10^-6 for d=128.
+
+### D6. Lloyd-Max outer integration bounds
+
+| | Paper | Reference repo | Our implementation |
+|---|---|---|---|
+| Outer edges | Implicitly ±∞ (integral over full support) | `[lo * 3] + boundaries + [hi * 3]` = ±10.5σ | Same as reference |
+
+**Impact**: The outermost integration bounds for the first and last partition
+should extend to ±∞ (or ±1 for exact Beta). Both implementations use ±10.5σ
+(≈ ±0.93 for d=128) as a practical finite approximation. The probability mass
+beyond 10.5σ is negligible (~10^-25 for Gaussian), so this has no measurable
+effect.
+
+### D7. QJL (Algorithm 2) — implemented but not used in V3
+
+| | Paper (Alg 2) | Reference repo | Our implementation |
+|---|---|---|---|
+| Presence | Core algorithm: (b-1)-bit MSE + 1-bit QJL on residual | `TurboQuantProd` in `turboquant.py`; dropped in V3 `compressors_v3.py` | `TurboQuantProd` in `turboquant.py`; dropped in V3 `compressors.py` |
+| QJL matrix S | i.i.d. N(0,1) entries, S ∈ R^{d×d} | Same | Same |
+| Dequant formula | `x̃_qjl = √(π/2)/d · γ · S^T · qjl` | Same | Same |
+| Inner product | `⟨y, x̃_mse⟩ + ‖r‖ · √(π/2)/m · ⟨Sy, sign(Sr)⟩` | Same | Same |
+
+**Impact**: Our `TurboQuantProd` faithfully implements Algorithm 2, including
+the QJL projection matrix, sign quantization, residual norm, and unbiased inner
+product estimator. However, the V3 production path (`MSECompressor`,
+`TurboQuantV3`) deliberately drops QJL and allocates all bits to Lloyd-Max MSE
+quantization. This is a deliberate departure based on community findings:
+softmax exponentially amplifies QJL's random variance, degrading attention
+quality. The paper itself only uses QJL for inner-product estimation and vector
+search, not for attention through softmax. Six independent implementations
+confirmed MSE-only outperforms MSE+QJL for KV cache compression.
+
+### D8. QJL zero handling
+
+| | Paper | Reference repo | Our implementation |
+|---|---|---|---|
+| sign(0) | Not specified (probability 0 for continuous distributions) | `qjl_signs[qjl_signs == 0] = 1.0` | Same |
+
+**Impact**: The paper defines `sign(S · x)` without specifying the case when
+a projection is exactly zero (probability zero for continuous Gaussian S and
+continuous x). Both implementations map zero to +1. This has no practical effect.
+
+### D9. Mixed-precision bit allocation (2.5-bit, 3.5-bit)
+
+| | Paper (Section 4.3) | Reference repo | Our implementation |
+|---|---|---|---|
+| Method | Split channels into outlier/non-outlier groups; apply different TurboQuant instances with different bit-widths to each group | Not implemented | Not implemented |
+| Example | 2.5-bit: 32 outlier channels at 3-bit + 96 regular channels at 2-bit → effective (32×3+96×2)/128 = 2.5 | — | — |
+
+**Impact**: The paper achieves non-integer bit-widths (2.5, 3.5) by identifying
+outlier channels and allocating them more bits. This is referenced in Table 1
+where TurboQuant achieves strong LongBench scores at 2.5 and 3.5 bits. Our
+implementation uses uniform bit-width per K/V component (e.g., K=4, V=2) and
+does not split channels. Adding outlier-aware mixed precision would improve
+compression quality at the same average bit rate.
+
+### D10. PolarQuant (blog-described related algorithm)
+
+| | Blog | Paper | Our implementation |
+|---|---|---|---|
+| Status | Described as a key component: "PolarQuant converts vectors into polar coordinates" | Referenced as a related method (PolarQuant [28]) | Not implemented |
+
+**Impact**: PolarQuant is a separate algorithm that converts Cartesian
+coordinates to polar form, achieving zero-overhead quantization through a
+different mathematical approach. The blog post describes it as part of the
+TurboQuant family, but the paper treats it as a related method. Our
+implementation does not include PolarQuant.
+
+### D11. Asymmetric K/V bit allocation (V3 only)
+
+| | Paper | Reference repo | Our implementation |
+|---|---|---|---|
+| K/V bits | Same bit-width for both K and V | V3 supports separate K/V bits; V2 uses same bits with QJL for K, MSE for V | Separate K/V bits (e.g., K=8/V=4, K=4/V=2) |
+
+**Impact**: The paper uses the same quantization scheme for all vectors. Our V3
+exploits the empirical finding (confirmed by community) that keys require more
+precision than values because errors in keys are amplified by softmax. The
+reference repo's V3 implements the same asymmetry. This is an enhancement not
+present in the paper.
+
+### D12. Residual windowing (V3 only)
+
+| | Paper | Reference repo | Our implementation |
+|---|---|---|---|
+| Recent tokens | All tokens quantized during streaming generation (Section 4.3) | V3: configurable `residual_window` tokens kept in fp16 | Same as reference V3 |
+
+**Impact**: The paper explicitly states "our method applies quantization even
+during the streaming generation process." Our V3 keeps the most recent
+`residual_window` tokens (128-256) in full fp16 to preserve generation quality.
+This reduces the effective compression ratio for short contexts but significantly
+improves generation correctness. The reference repo's V3 implements identical
+windowing. This is a departure from the paper's approach.
+
+### D13. Layer-adaptive precision (V3 only)
+
+| | Paper | Reference repo | Our implementation |
+|---|---|---|---|
+| Per-layer bits | Uniform across all layers | V3: first/last N layers get `protected_bits` (8-bit) | Same as reference V3 |
+
+**Impact**: The paper applies the same quantization to all transformer layers.
+Our V3 protects early and late layers (which carry positional encodings and
+final predictions) with higher bit-width while compressing middle layers more
+aggressively. The reference repo's V3 implements identical layer-adaptive
+precision. This is a community-informed enhancement.
+
+### D14. Bit-packed storage format
+
+| | Paper | Reference repo | Our implementation |
+|---|---|---|---|
+| Storage | Stores b-bit integer indices (format unspecified) | V3: bit-packs into `uint8` with shift/mask operations | Same as reference V3 |
+
+**Impact**: The paper describes storing indices as b-bit integers but does not
+detail the packing format. Both our implementation and the reference V3 pack
+multiple indices per byte (e.g., 4-bit: 2 per byte, 2-bit: 4 per byte) using
+bit-shifting. The packing/unpacking logic is identical between the reference V3
+and our implementation.
+
+### D15. Codebook caching
+
+| | Paper | Reference repo | Our implementation |
+|---|---|---|---|
+| Caching | "Precompute and store these optimal codebooks for a range of practically useful bit-widths" | No caching — new `LloydMaxCodebook` created each time | `_codebook_cache` dict memoizes `LloydMaxCodebook` instances by `(d, bits, use_exact)` |
+
+**Impact**: The paper says codebooks should be precomputed once and reused. The
+reference repo creates a fresh codebook each time (rerunning the Lloyd-Max
+solver), which is slow when creating many compressors (e.g., one per layer). Our
+implementation adds a module-level cache that avoids redundant computation. This
+is a performance optimization, not an algorithmic change.
+
+### D16. `scipy.special` import
+
+| | Reference repo (`lloyd_max.py`) | Our implementation |
+|---|---|---|
+| Import | `from scipy import integrate, special` | `from scipy import integrate` |
+
+**Impact**: The reference repo imports `scipy.special` but never uses it. Our
+implementation removes the unused import. No functional difference.
+
+### D17. Entropy encoding of codebook indices
+
+| | Paper (Section 3.1) | Reference repo | Our implementation |
+|---|---|---|---|
+| Status | Described but deliberately not implemented: "We have chosen not to incorporate this technique to maintain simplicity and speed." Saves ~5% at b=4. | Not implemented | Not implemented |
+
+**Impact**: The paper derives that entropy coding can reduce the average
+bit-width by ~5% for 4-bit quantization but chose simplicity over the marginal
+gain. We match this decision.
+
+### D18. KV cache class architecture
+
+| | Paper | Reference repo | Our implementation |
+|---|---|---|---|
+| V2 cache | — | `TurboQuantKVCache` in `turboquant.py`: QJL for keys, MSE for values, with `attention_scores()` for asymmetric inner product | Not present (no V2 cache class) |
+| V2 compressor | — | `TurboQuantCompressorV2` in `compressors.py`: stores `k_mse` + QJL signs + residual norms; has `asymmetric_attention_scores()` | Not present |
+| V3 cache | — | `TurboQuantV3` in `compressors_v3.py` | `TurboQuantV3` in `compressors.py` |
+| Live generation | — | — | `V3Cache` in `evaluate.py` (subclasses `transformers.DynamicCache`) |
+
+**Impact**: The reference repo includes V2 compressors with asymmetric attention
+score computation (computing `⟨Q, K⟩` directly from compressed K using the QJL
+estimator, without decompressing). We do not implement V2 compressors. Our
+`V3Cache` (for live generation evaluation) is unique to our implementation and
+not present in the reference repo.
+
+### D19. Validation and evaluation approach
+
+| | Paper | Reference repo | Our implementation |
+|---|---|---|---|
+| Benchmarks | LongBench, Needle-in-Haystack (4K-104K), ZeroSCROLLS, RULER, L-Eval, NNS (GloVe, DBpedia) | Needle-in-Haystack (custom), attention cosine similarity, generation test | Memory measurement, attention fidelity (cosine + top-k), compress/decompress throughput, generation speed (tok/s), needle-in-haystack |
+| Models | Llama-3.1-8B-Instruct, Ministral-7B-Instruct (fp16/bf16) | Qwen2.5-3B-Instruct (4-bit via bitsandbytes) | Same as reference |
+| GPU | NVIDIA A100 | RTX 3060 (12GB) | RTX 4070 Laptop (8GB) |
+| Context | Up to 104K tokens | Up to 8K tokens | Up to 2K tokens (default) |
+
+**Impact**: Our evaluation is substantially smaller in scope. The paper's
+results at 3.5-bit on Llama-3.1-8B with 104K context cannot be reproduced on
+our hardware. Our metrics focus on demonstrating the algorithm works correctly
+rather than matching the paper's large-scale numbers.
+
+### D20. Attention speed benchmarks
+
+| | Paper (Figure, Section 4.3) | Reference repo | Our implementation |
+|---|---|---|---|
+| Reported | "4-bit TurboQuant achieves up to 8x performance increase over 32-bit unquantized keys on H100 GPU" | Not measured | Python-level throughput only; no Triton/CUDA kernels |
+
+**Impact**: The paper's 8x attention speedup is measured on H100 with fused
+JAX/XLA kernels. Our implementation runs compression/decompression as PyTorch
+Python operations without fused kernels. Generation speed is ~0.62x of FP16
+baseline due to Python-level overhead in the V3Cache's per-step
+decompression loop. A Triton kernel would close this gap.
+
+### D21. Reference repo V2 `asymmetric_attention_scores()` (direct compressed attention)
+
+| | Paper (implied by Algorithm 2) | Reference repo (`compressors.py`) | Our implementation |
+|---|---|---|---|
+| Feature | Inner product estimated from compressed representation without decompression | `TurboQuantCompressorV2.asymmetric_attention_scores()`: computes `Q @ K_mse^T + correction` | Not implemented |
+
+**Impact**: The reference repo implements a direct attention computation from
+compressed keys that avoids full decompression. It stores `k_mse` (the MSE
+reconstruction in original space) as fp16 + QJL signs + residual norms, then
+computes attention as `term1 + term2` where `term2` is the QJL correction. Our
+implementation always decompresses before computing attention. Since we drop QJL
+in V3, the asymmetric estimator is less relevant, but the idea of computing
+`Q @ K_mse^T` directly from compressed storage (without decompressing K) could
+be valuable for a Triton kernel.
+
+### D22. Reference repo stores MSE reconstruction as fp16
+
+| | Reference repo V2 (`compressors.py`) | Our implementation |
+|---|---|---|
+| Storage | Stores `k_mse` as fp16 tensor (the full MSE reconstruction) alongside QJL signs and residual norms | Stores only packed indices + norms; reconstructs on demand |
+
+**Impact**: The reference V2 compressor stores the pre-decompressed MSE
+reconstruction as a full fp16 tensor, which provides zero memory savings
+(actually 38% larger than uncompressed, as noted in the reference README). Our
+V3 stores only bit-packed indices + fp16 norms, achieving actual compression.
+The reference V3 also fixes this with bit-packing identical to ours.
+
+### D23. Sign-flip determinism and seeding
+
+| | Paper | Reference repo | Our implementation |
+|---|---|---|---|
+| Seed for rotation | Not specified | `seed` parameter to `generate_rotation_matrix()` via `torch.Generator` | `seed` parameter to `generate_hadamard_signs()` via `torch.Generator` |
+| Seed for QJL S | Not specified | `seed + 1` for QJL in `TurboQuantProd` | Same: `seed + 1` |
+| Per-layer seeds | Not specified | `seed + layer_idx * 1000` for key, `+500` for value | Same: `seed + layer_idx * 1000` for key, `+500` for value |
+
+**Impact**: Seeding is an implementation detail not specified by the paper. Both
+the reference and our implementation use identical per-layer seed derivation
+(`seed_base = seed + layer_idx * 1000`, key compressor uses `seed_base`, value
+compressor uses `seed_base + 500`). This ensures different layers and K/V get
+different rotation matrices.
+
+### D24. Near-neighbor search experiments
+
+| | Paper (Section 4.4) | Reference repo | Our implementation |
+|---|---|---|---|
+| Status | Evaluated on GloVe (d=200), OpenAI3 (d=1536, d=3072); comparison with PQ and RabitQ | Not implemented | Not implemented |
+
+**Impact**: The paper demonstrates TurboQuant's applicability to vector search
+tasks beyond KV cache. Neither the reference nor our implementation includes
+nearest-neighbor search experiments.
+
+### D25. Compression during streaming generation
+
+| | Paper (Section 4.3) | Reference repo | Our implementation |
+|---|---|---|---|
+| Streaming | "our method applies quantization even during the streaming generation process" — all tokens quantized including generated ones | No live generation cache implementation | `V3Cache` subclasses `DynamicCache` and compresses overflow tokens during generation |
+
+**Impact**: Our `V3Cache` in `evaluate.py` is the only implementation across
+the three codebases that actually compresses tokens on-the-fly during
+`model.generate()`. However, the `transformers` library's `DynamicCache`
+stores full fp16 tensors internally, so peak GPU memory is not reduced.
+True streaming compression requires integration into a serving engine (vLLM,
+SGLang) where the compressed format can be stored directly in paged cache.
+
+### D26. Model quantization (4-bit model weights via bitsandbytes)
+
+| | Paper | Reference repo | Our implementation |
+|---|---|---|---|
+| Model precision | fp16/bf16 (full precision or bf16) | 4-bit via bitsandbytes (default) | 4-bit via bitsandbytes (default) |
+
+**Impact**: The paper uses full-precision models. Both the reference and our
+implementation default to 4-bit model weight quantization to fit larger models
+on consumer GPUs. This means the KV cache values themselves may differ slightly
+from the paper's setup (since the model computes different activations at 4-bit
+vs fp16). KV cache compression quality metrics are thus not directly comparable
+to the paper's numbers.
 
 ---
 
@@ -87,9 +437,10 @@ Input KV vector (fp16, d=128)
 
 ### Why rotation works
 
-Given a d-dimensional vector `x` with `||x|| = 1`, applying a Haar-distributed
-random orthogonal rotation `R` produces `y = Rx` whose coordinates are
-marginally distributed as:
+Given a d-dimensional vector `x` with `||x|| = 1`, applying a random orthogonal
+rotation `R` (Haar-distributed per the paper; Hadamard-based in our
+implementation — see [D1](#d1-rotation-matrix-hadamard-vs-haar-distributed-orthogonal))
+produces `y = Rx` whose coordinates are marginally distributed as:
 
 ```
 f(y_i) = Gamma(d/2) / (sqrt(pi) * Gamma((d-1)/2)) * (1 - y_i^2)^((d-3)/2)
@@ -135,8 +486,9 @@ Our measured distortion matches this bound:
 
 ### Hadamard rotation (replacing dense orthogonal matrix)
 
-The paper and all production implementations use a **randomized Hadamard
-transform** instead of a full random orthogonal matrix:
+The paper uses a Haar-distributed random orthogonal matrix via QR decomposition.
+All production implementations (SGLang, llama.cpp, QuaRot) instead use a
+**randomized Hadamard transform**, which we adopt (see [D1](#d1-rotation-matrix-hadamard-vs-haar-distributed-orthogonal)):
 
 ```
 Rotate(x)   = FWHT(x * signs)         -- O(d log d)
@@ -159,31 +511,44 @@ d=128. In a fused Triton kernel, the O(d log d) FWHT would be preferred.
 ### V3 Improvements over the base paper
 
 This implementation goes beyond the paper's Algorithm 1 with five
-community-validated improvements:
+community-validated improvements (each linked to its deviation entry above):
 
-1. **MSE-only (no QJL)**: The paper's Algorithm 2 adds a 1-bit QJL correction
-   for unbiased inner products. In practice, the QJL variance is amplified by
-   softmax, hurting attention quality. All production implementations (SGLang,
-   llama.cpp) drop QJL and allocate all bits to Lloyd-Max centroids.
+1. **MSE-only (no QJL)** ([D7](#d7-qjl-algorithm-2--implemented-but-not-used-in-v3)):
+   The paper's Algorithm 2 adds a 1-bit QJL correction for unbiased inner
+   products. In practice, the QJL variance is amplified by softmax, hurting
+   attention quality. All production implementations (SGLang, llama.cpp) drop
+   QJL and allocate all bits to Lloyd-Max centroids.
 
-2. **Asymmetric K/V bit allocation**: Keys require more precision than values
-   because attention scores are `softmax(QK^T)` -- errors in K are amplified
-   by softmax. The value cache tolerates aggressive compression since it's
-   only a weighted sum. Typical: K=8bit / V=4bit or K=4bit / V=2bit.
+2. **Asymmetric K/V bit allocation** ([D11](#d11-asymmetric-kv-bit-allocation-v3-only)):
+   Keys require more precision than values because attention scores are
+   `softmax(QK^T)` -- errors in K are amplified by softmax. The value cache
+   tolerates aggressive compression since it's only a weighted sum.
+   Typical: K=8bit / V=4bit or K=4bit / V=2bit.
 
-3. **Residual windowing**: The most recent `rw` tokens are kept in full fp16.
-   This preserves generation quality since the model attends most strongly to
-   recent context. Older tokens are compressed.
+3. **Residual windowing** ([D12](#d12-residual-windowing-v3-only)):
+   The most recent `rw` tokens are kept in full fp16. This preserves
+   generation quality since the model attends most strongly to recent context.
+   Older tokens are compressed. The paper explicitly states all tokens are
+   quantized during streaming; our departure improves generation correctness.
 
-4. **Layer-adaptive precision**: Early and late transformer layers are more
-   sensitive to quantization (they carry position encodings and final
-   predictions). These "protected" layers use higher bit-width (8-bit)
-   regardless of the profile setting. Middle layers tolerate aggressive
-   compression.
+4. **Layer-adaptive precision** ([D13](#d13-layer-adaptive-precision-v3-only)):
+   Early and late transformer layers are more sensitive to quantization (they
+   carry position encodings and final predictions). These "protected" layers
+   use higher bit-width (8-bit) regardless of the profile setting. Middle
+   layers tolerate aggressive compression.
 
-5. **Bit-packed storage**: Indices are packed into uint8 for actual memory
-   reduction. For example, 4-bit quantization packs 2 indices per byte; 2-bit
-   packs 4 per byte.
+5. **Bit-packed storage** ([D14](#d14-bit-packed-storage-format)):
+   Indices are packed into uint8 for actual memory reduction. For example,
+   4-bit quantization packs 2 indices per byte; 2-bit packs 4 per byte.
+
+Additionally, we replace the paper's rotation and quantization methods with
+faster alternatives:
+
+6. **Hadamard rotation** ([D1](#d1-rotation-matrix-hadamard-vs-haar-distributed-orthogonal)):
+   O(d log d) FWHT replaces O(d²) dense random orthogonal matmul.
+
+7. **Binary search quantization** ([D2](#d2-quantization-torchbucketize-vs-brute-force-argmin)):
+   O(d log k) `torch.bucketize` replaces O(d × k) brute-force argmin.
 
 ### Class hierarchy
 
@@ -489,16 +854,30 @@ responses to the FP16 baseline.
    to be a power of 2 (64, 128, 256). This covers all mainstream models but
    would need padding for non-standard dimensions.
 
-6. **No mixed-precision (2.5-bit, 3.5-bit)**: The paper describes mixed-precision
-   configurations that split channels into outlier/non-outlier groups with
-   different bit-widths. This implementation uses uniform bit-width per
-   K/V component. Adding mixed-precision is straightforward but not yet
-   implemented.
+6. **No mixed-precision (2.5-bit, 3.5-bit)** ([D9](#d9-mixed-precision-bit-allocation-25-bit-35-bit)):
+   The paper describes mixed-precision configurations that split channels into
+   outlier/non-outlier groups with different bit-widths. This implementation
+   uses uniform bit-width per K/V component. Adding mixed-precision is
+   straightforward but not yet implemented.
 
-7. **QJL mode not recommended**: The Stage 2 QJL correction (`TurboQuantProd`)
-   is implemented for paper completeness but degrades generation quality in
-   practice. The MSE-only path (`TurboQuantMSE`, `MSECompressor`) is used by
-   all production deployments.
+7. **QJL mode not recommended** ([D7](#d7-qjl-algorithm-2--implemented-but-not-used-in-v3)):
+   The Stage 2 QJL correction (`TurboQuantProd`) is implemented for paper
+   completeness but degrades generation quality in practice. The MSE-only
+   path (`TurboQuantMSE`, `MSECompressor`) is used by all production deployments.
+
+8. **No PolarQuant** ([D10](#d10-polarquant-blog-described-related-algorithm)):
+   The Google blog post describes PolarQuant as a companion algorithm. It is a
+   separate method not part of the TurboQuant paper's Algorithms 1-2 and is
+   not implemented here.
+
+9. **No asymmetric attention** ([D21](#d21-reference-repo-v2-asymmetric_attention_scores-direct-compressed-attention)):
+   The reference repo includes a V2 mode that computes `Q @ K^T` directly
+   from compressed representations without decompressing K. We always
+   decompress first. Asymmetric attention could be valuable in a fused kernel.
+
+10. **No nearest-neighbor search** ([D24](#d24-near-neighbor-search-experiments)):
+    The paper demonstrates TurboQuant for vector search tasks. Our
+    implementation focuses exclusively on KV cache compression.
 
 ---
 
