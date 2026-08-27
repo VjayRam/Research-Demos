@@ -11,16 +11,19 @@ from .rotation import generate_rotation_matrix
 
 
 class PolarQuant:
-    def __init__(self, d: int, bits: int, seed: int = 0):
+    def __init__(self, d: int, bits: int, seed: int = 0, device: str | None = None):
         if d < 2 or (d & (d - 1)) != 0:
             raise ValueError(f"d must be a power of 2 and >= 2, got {d}")
         if bits < 1:
             raise ValueError(f"bits must be >= 1, got {bits}")
+        if device is None:
+            device = "cuda" if torch.cuda.is_available() else "cpu"
 
         self.d = d
         self.bits = bits
+        self.device = device
         self.n_levels = int(math.log2(d))
-        self.rotation = generate_rotation_matrix(d, seed)
+        self.rotation = generate_rotation_matrix(d, seed, device=device)
         self.codebooks = [
             Codebook.for_density(polar_angle_density(level), bits)
             for level in range(1, self.n_levels + 1)

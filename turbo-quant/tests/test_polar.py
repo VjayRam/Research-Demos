@@ -15,7 +15,7 @@ def test_rejects_invalid_bits():
 
 
 def test_number_of_levels_and_angle_indices():
-    q = PolarQuant(d=8, bits=2, seed=0)
+    q = PolarQuant(d=8, bits=2, seed=0, device="cpu")
     assert q.n_levels == 3  # log2(8)
     x = torch.randn(2, 8)
     compressed = q.quantize(x)
@@ -27,7 +27,7 @@ def test_number_of_levels_and_angle_indices():
 
 
 def test_round_trip_shape():
-    q = PolarQuant(d=16, bits=3, seed=1)
+    q = PolarQuant(d=16, bits=3, seed=1, device="cpu")
     x = torch.randn(4, 16)
     compressed = q.quantize(x)
     x_hat = q.dequantize(compressed)
@@ -39,7 +39,7 @@ def test_round_trip_error_decreases_with_more_bits():
     x = torch.randn(4, 16)
     errors = []
     for bits in (1, 2, 3, 4):
-        q = PolarQuant(d=16, bits=bits, seed=2)
+        q = PolarQuant(d=16, bits=bits, seed=2, device="cpu")
         compressed = q.quantize(x)
         x_hat = q.dequantize(compressed)
         errors.append(((x - x_hat) ** 2).sum().item())
@@ -49,7 +49,7 @@ def test_round_trip_error_decreases_with_more_bits():
 def test_norm_is_approximately_preserved():
     # Rotation preserves norm exactly; quantization error should keep the
     # reconstructed norm reasonably close to the original at moderate bits.
-    q = PolarQuant(d=16, bits=4, seed=3)
+    q = PolarQuant(d=16, bits=4, seed=3, device="cpu")
     x = torch.randn(1, 16)
     compressed = q.quantize(x)
     x_hat = q.dequantize(compressed)

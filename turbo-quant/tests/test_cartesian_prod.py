@@ -10,7 +10,7 @@ def test_rejects_bits_below_two():
 
 
 def test_quantize_dequantize_round_trip_shapes():
-    q = TurboQuantProd(d=16, bits=3, seed=0)
+    q = TurboQuantProd(d=16, bits=3, seed=0, device="cpu")
     x = torch.randn(5, 16)
     compressed = q.quantize(x)
     x_hat = q.dequantize(compressed)
@@ -20,7 +20,7 @@ def test_quantize_dequantize_round_trip_shapes():
 def test_inner_product_is_empirically_unbiased():
     torch.manual_seed(0)
     d = 64
-    q = TurboQuantProd(d=d, bits=2, seed=3)
+    q = TurboQuantProd(d=d, bits=2, seed=3, device="cpu")
 
     estimates = []
     truths = []
@@ -44,7 +44,7 @@ def test_inner_product_is_empirically_unbiased():
 def test_inner_product_matches_dequantized_dot_for_pure_mse_term():
     # With residual_norm forced to 0, inner_product's QJL term vanishes and
     # it must equal a plain dot product against the MSE reconstruction.
-    q = TurboQuantProd(d=16, bits=2, seed=1)
+    q = TurboQuantProd(d=16, bits=2, seed=1, device="cpu")
     x = torch.randn(1, 16)
     y = torch.randn(1, 16)
     compressed = q.quantize(x)

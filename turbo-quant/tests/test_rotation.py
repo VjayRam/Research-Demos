@@ -4,7 +4,7 @@ from turboquant.rotation import generate_rotation_matrix
 
 
 def test_output_is_orthogonal():
-    q = generate_rotation_matrix(d=16, seed=0)
+    q = generate_rotation_matrix(d=16, seed=0, device="cpu")
     identity = torch.eye(16)
     assert torch.allclose(q.T @ q, identity, atol=1e-5)
 

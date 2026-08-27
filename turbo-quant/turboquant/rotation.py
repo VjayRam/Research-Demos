@@ -2,17 +2,20 @@
 
 import torch
 
-_rotation_cache: dict[tuple[int, int], torch.Tensor] = {}
+_rotation_cache: dict[tuple[int, int, str], torch.Tensor] = {}
 
 
-def generate_rotation_matrix(d: int, seed: int) -> torch.Tensor:
+def generate_rotation_matrix(d: int, seed: int, device: str | None = None) -> torch.Tensor:
     """Haar-distributed random orthogonal d x d matrix, built by QR-decomposing
     a random Gaussian matrix and fixing the sign ambiguity in Q.
 
-    Cached per (d, seed): this is the paper's "setup, once per (d,b)" step,
-    data-independent and reused across every call at that (d, seed).
+    Cached per (d, seed, device): this is the paper's "setup, once per (d,b)" step,
+    data-independent and reused across every call at that (d, seed, device).
     """
-    key = (d, seed)
+    if device is None:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    key = (d, seed, device)
     if key in _rotation_cache:
         return _rotation_cache[key]
 
@@ -22,7 +25,7 @@ def generate_rotation_matrix(d: int, seed: int) -> torch.Tensor:
     q, r = torch.linalg.qr(g)
     diag_sign = torch.sign(torch.diag(r))
     diag_sign[diag_sign == 0] = 1.0
-    q = (q * diag_sign.unsqueeze(0)).to(torch.float32)
+    q = (q * diag_sign.unsqueeze(0)).to(torch.float32).to(device)
 
     _rotation_cache[key] = q
     return q

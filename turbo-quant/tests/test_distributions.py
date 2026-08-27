@@ -57,7 +57,7 @@ def test_rotation_coordinate_matches_beta_density_via_ks_test():
     e1[0] = 1.0
     samples = []
     for seed in range(400):
-        q = generate_rotation_matrix(d=d, seed=seed)
+        q = generate_rotation_matrix(d=d, seed=seed, device="cpu")
         samples.append((q @ e1)[0].item())
 
     density = beta_coordinate_density(d)

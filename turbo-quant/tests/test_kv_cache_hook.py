@@ -11,8 +11,8 @@ from turboquant import TurboQuantMSE, TurboQuantProd
 
 def test_update_round_trips_through_quantizer_and_matches_shape():
     b, h, s, d = 1, 2, 3, 16
-    key_q = TurboQuantMSE(d=d, bits=3, seed=0)
-    val_q = TurboQuantMSE(d=d, bits=3, seed=1)
+    key_q = TurboQuantMSE(d=d, bits=3, seed=0, device="cpu")
+    val_q = TurboQuantMSE(d=d, bits=3, seed=1, device="cpu")
     cache = QuantizingCache(key_quantizer=key_q, value_quantizer=val_q)
 
     keys = torch.randn(b, h, s, d)
@@ -27,8 +27,8 @@ def test_update_round_trips_through_quantizer_and_matches_shape():
 
 def test_update_round_trips_with_dict_returning_quantizer():
     b, h, s, d = 1, 2, 3, 16
-    key_q = TurboQuantProd(d=d, bits=2, seed=0)
-    val_q = TurboQuantProd(d=d, bits=2, seed=1)
+    key_q = TurboQuantProd(d=d, bits=2, seed=0, device="cpu")
+    val_q = TurboQuantProd(d=d, bits=2, seed=1, device="cpu")
     cache = QuantizingCache(key_quantizer=key_q, value_quantizer=val_q)
 
     keys = torch.randn(b, h, s, d)
@@ -43,8 +43,8 @@ def test_update_round_trips_with_dict_returning_quantizer():
 
 def test_update_appends_across_calls():
     b, h, d = 1, 2, 8
-    key_q = TurboQuantMSE(d=d, bits=2, seed=0)
-    val_q = TurboQuantMSE(d=d, bits=2, seed=1)
+    key_q = TurboQuantMSE(d=d, bits=2, seed=0, device="cpu")
+    val_q = TurboQuantMSE(d=d, bits=2, seed=1, device="cpu")
     cache = QuantizingCache(key_quantizer=key_q, value_quantizer=val_q)
 
     first_keys = torch.randn(b, h, 3, d)

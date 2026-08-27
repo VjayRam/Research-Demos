@@ -13,12 +13,15 @@ import torch
 class TurboQuantMSE:
     """Algorithm 1: rotate, per-coordinate Lloyd-Max quantize, unrotate."""
 
-    def __init__(self, d: int, bits: int, seed: int = 0):
+    def __init__(self, d: int, bits: int, seed: int = 0, device: str | None = None):
         if bits < 1:
             raise ValueError(f"bits must be >= 1, got {bits}")
+        if device is None:
+            device = "cuda" if torch.cuda.is_available() else "cpu"
         self.d = d
         self.bits = bits
-        self.rotation = generate_rotation_matrix(d, seed)
+        self.device = device
+        self.rotation = generate_rotation_matrix(d, seed, device=device)
         self.codebook = Codebook.for_density(beta_coordinate_density(d), bits)
 
     def rotate(self, x: torch.Tensor) -> torch.Tensor:
@@ -45,13 +48,16 @@ class TurboQuantProd:
     """Algorithm 2: (bits-1)-bit MSE stage + 1-bit QJL sign-quantized residual,
     for unbiased inner-product estimation."""
 
-    def __init__(self, d: int, bits: int, seed: int = 0):
+    def __init__(self, d: int, bits: int, seed: int = 0, device: str | None = None):
         if bits < 2:
             raise ValueError(f"bits must be >= 2 for TurboQuantProd, got {bits}")
+        if device is None:
+            device = "cuda" if torch.cuda.is_available() else "cpu"
         self.d = d
         self.bits = bits
-        self.mse = TurboQuantMSE(d, bits - 1, seed=seed)
-        self.qjl_matrix = generate_qjl_matrix(d, seed=seed + 1)
+        self.device = device
+        self.mse = TurboQuantMSE(d, bits - 1, seed=seed, device=device)
+        self.qjl_matrix = generate_qjl_matrix(d, seed=seed + 1, device=device)
         self._correction_scale = math.sqrt(math.pi / 2) / self.d
 
     def quantize(self, x: torch.Tensor) -> dict:
