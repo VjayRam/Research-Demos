@@ -18,9 +18,18 @@ dependencies = [
     "transformers>=5.3.0",
 ]
 
+[dependency-groups]
+dev = [
+    "pytest>=7.0",
+]
+
+[tool.uv.workspace]
+members = ["turbo-quant"]
+
 [tool.uv.sources]
 torch = { index = "pytorch-cu130" }
 torchvision = { index = "pytorch-cu130" }
+turboquant = { workspace = true }
 
 [[tool.uv.index]]
 name = "pytorch-cu130"
