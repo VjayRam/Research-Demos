@@ -13,6 +13,7 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from kv_cache_hook import QuantizingCache
+from results_logger import default_output_path, write_csv
 from turboquant import PolarQuant, TurboQuantMSE, TurboQuantProd
 
 ALGORITHMS = {
@@ -49,9 +50,18 @@ def head_dim_of(model) -> int:
     return config.hidden_size // config.num_attention_heads
 
 
-def run(model_name: str, algorithms: list[str], bits_list: list[int], repeat: int, device: str | None = None):
+def run(
+    model_name: str,
+    algorithms: list[str],
+    bits_list: list[int],
+    repeat: int,
+    device: str | None = None,
+    output: str | None = None,
+):
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
+    if output is None:
+        output = default_output_path("run_benchmark")
     print(f"Running on device: {device}")
 
     tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -62,8 +72,22 @@ def run(model_name: str, algorithms: list[str], bits_list: list[int], repeat: in
     text = SAMPLE_TEXT * repeat
     d = head_dim_of(model)
 
+    rows = []
+
     baseline_ppl = measure_perplexity(model, tokenizer, text, device=device)
     print(f"{model_name} (head_dim={d}) baseline perplexity: {baseline_ppl:.3f}")
+    rows.append(
+        {
+            "model": model_name,
+            "device": device,
+            "head_dim": d,
+            "algorithm": "baseline",
+            "bits": None,
+            "perplexity": baseline_ppl,
+            "perplexity_delta": 0.0,
+            "compression_ratio": 1.0,
+        }
+    )
 
     for algorithm in algorithms:
         cls = ALGORITHMS[algorithm]
@@ -80,6 +104,21 @@ def run(model_name: str, algorithms: list[str], bits_list: list[int], repeat: in
                 f"  {algorithm} b={bits}: perplexity={ppl:.3f} "
                 f"(+{ppl - baseline_ppl:+.3f} vs baseline), compression={ratio:.2f}x"
             )
+            rows.append(
+                {
+                    "model": model_name,
+                    "device": device,
+                    "head_dim": d,
+                    "algorithm": algorithm,
+                    "bits": bits,
+                    "perplexity": ppl,
+                    "perplexity_delta": ppl - baseline_ppl,
+                    "compression_ratio": ratio,
+                }
+            )
+
+    write_csv(rows, output)
+    print(f"Results written to: {output}")
 
 
 def main():
@@ -92,12 +131,17 @@ def main():
     parser.add_argument(
         "--device", default=None, help="torch device to run on (default: auto-detect CUDA if available, else CPU)"
     )
+    parser.add_argument(
+        "--output",
+        default=None,
+        help="path to write CSV results (default: timestamped file under examples/results/)",
+    )
     args = parser.parse_args()
 
     if args.smoke_test:
-        run("hf-internal-testing/tiny-random-gpt2", ["mse"], [2], repeat=1, device=args.device)
+        run("hf-internal-testing/tiny-random-gpt2", ["mse"], [2], repeat=1, device=args.device, output=args.output)
     else:
-        run(args.model, args.algorithm, args.bits, repeat=args.repeat, device=args.device)
+        run(args.model, args.algorithm, args.bits, repeat=args.repeat, device=args.device, output=args.output)
 
 
 if __name__ == "__main__":
