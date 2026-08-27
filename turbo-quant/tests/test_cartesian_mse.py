@@ -34,9 +34,16 @@ def test_worked_example_d4_b1_matches_primer():
     # concrete (normalized) Hadamard matrix as the orthogonal transform,
     # b=1. We inject that exact Hadamard rotation in place of the package's
     # random QR rotation so the deterministic worked numbers are
-    # reproducible: after rotation every coordinate is 0.5, centroids are
-    # +/- sqrt(2/pi)/sqrt(4) = +/-0.39894, reconstruction is
-    # (0.79788, 0, 0, 0), and the squared error is ~0.20212.
+    # reproducible: after rotation every coordinate is 0.5.
+    #
+    # The b=1 centroid is the EXACT Lloyd-Max optimum (conditional mean of
+    # the positive half of the Beta density), not the primer's asymptotic
+    # sqrt(2/pi)/sqrt(d) approximation -- at d=4 those differ by ~6%. The
+    # exact closed form at d=4 simplifies to 4/(3*pi) ~= 0.42441 (verified:
+    # 2*Gamma(d/2) / (sqrt(pi)*(d-1)*Gamma((d-1)/2)) at d=4 reduces to
+    # 4/(3*pi) since Gamma(2)=1 and Gamma(1.5)=sqrt(pi)/2). Using the exact
+    # optimal centroid gives a smaller reconstruction error than the
+    # primer's approximate figure, as expected of an optimal quantizer.
     q = TurboQuantMSE(d=4, bits=1, seed=0)
     hadamard = torch.tensor(
         [
@@ -52,12 +59,14 @@ def test_worked_example_d4_b1_matches_primer():
     rotated = q.rotate(x / x.norm())
     assert torch.allclose(rotated, torch.full((1, 4), 0.5), atol=1e-6)
 
-    expected_centroid = math.sqrt(2 / math.pi) / math.sqrt(4)
+    expected_centroid = 4 / (3 * math.pi)
     assert math.isclose(q.codebook.centroids[1].item(), expected_centroid, rel_tol=1e-3)
 
     indices, norm = q.quantize(x)
     x_hat = q.dequantize(indices, norm)
-    assert torch.allclose(x_hat, torch.tensor([[0.79788, 0.0, 0.0, 0.0]]), atol=1e-3)
+    expected_x_hat = torch.tensor([[8 / (3 * math.pi), 0.0, 0.0, 0.0]])
+    assert torch.allclose(x_hat, expected_x_hat, atol=1e-3)
 
     squared_error = ((x - x_hat) ** 2).sum().item()
-    assert math.isclose(squared_error, 0.20212, abs_tol=2e-3)
+    expected_error = (1 - 8 / (3 * math.pi)) ** 2
+    assert math.isclose(squared_error, expected_error, abs_tol=2e-3)
