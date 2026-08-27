@@ -1,0 +1,1341 @@
+<title>TurboQuant Primer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+/* ============================= TOKENS ============================= */
+:root{
+  --bg:#EDF1EF;
+  --surface:#FFFFFF;
+  --surface-2:#E1E8E5;
+  --surface-3:#D3DCD8;
+  --ink:#12191A;
+  --ink-muted:#57696A;
+  --ink-faint:#8A9997;
+  --rule:#C9D3CF;
+  --accent-signal:#0E8C82;
+  --accent-signal-soft:#0E8C821a;
+  --accent-quant:#A8650A;
+  --accent-quant-soft:#A8650A1a;
+  --accent-error:#B23B23;
+  --accent-error-soft:#B23B231a;
+  --shadow:0 1px 2px rgba(18,25,26,0.06), 0 6px 20px rgba(18,25,26,0.05);
+  --radius:10px;
+  --font-display:'Newsreader', 'Iowan Old Style', 'Georgia', serif;
+  --font-body:'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
+  --font-mono:'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0C1213;
+    --surface:#131B1C;
+    --surface-2:#1B2426;
+    --surface-3:#25302F;
+    --ink:#E7EEEC;
+    --ink-muted:#93A6A3;
+    --ink-faint:#5E7371;
+    --rule:#243030;
+    --accent-signal:#4FE3D2;
+    --accent-signal-soft:#4FE3D226;
+    --accent-quant:#F2B24A;
+    --accent-quant-soft:#F2B24A26;
+    --accent-error:#FF7A61;
+    --accent-error-soft:#FF7A6126;
+    --shadow:0 1px 2px rgba(0,0,0,0.3), 0 8px 28px rgba(0,0,0,0.35);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0C1213;
+  --surface:#131B1C;
+  --surface-2:#1B2426;
+  --surface-3:#25302F;
+  --ink:#E7EEEC;
+  --ink-muted:#93A6A3;
+  --ink-faint:#5E7371;
+  --rule:#243030;
+  --accent-signal:#4FE3D2;
+  --accent-signal-soft:#4FE3D226;
+  --accent-quant:#F2B24A;
+  --accent-quant-soft:#F2B24A26;
+  --accent-error:#FF7A61;
+  --accent-error-soft:#FF7A6126;
+  --shadow:0 1px 2px rgba(0,0,0,0.3), 0 8px 28px rgba(0,0,0,0.35);
+}
+
+/* ============================= RESET/BASE ============================= */
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+@media (prefers-reduced-motion: reduce){ html{scroll-behavior:auto;} *{animation-duration:0.001ms !important; transition-duration:0.001ms !important;} }
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:var(--font-body); font-size:16px; line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4{font-family:var(--font-display); font-weight:600; text-wrap:balance; margin:0 0 .5em; color:var(--ink);}
+p{margin:0 0 1em; max-width:66ch;}
+a{color:var(--accent-signal);}
+.mono{font-family:var(--font-mono);}
+.eyebrow{
+  font-family:var(--font-mono); font-size:.72rem; letter-spacing:.11em; text-transform:uppercase;
+  color:var(--accent-signal); font-weight:600; margin:0 0 .6em;
+}
+.formula{
+  font-family:var(--font-mono); background:var(--surface-2); border:1px solid var(--rule);
+  border-radius:8px; padding:.9em 1.1em; overflow-x:auto; font-size:.92rem; color:var(--ink);
+  line-height:1.7;
+}
+.formula .op{color:var(--accent-signal);}
+.formula .q{color:var(--accent-quant);}
+code{font-family:var(--font-mono); font-size:.9em; background:var(--surface-2); padding:.1em .35em; border-radius:4px;}
+.tag{
+  display:inline-block; font-family:var(--font-mono); font-size:.7rem; letter-spacing:.06em;
+  text-transform:uppercase; padding:.2em .55em; border-radius:5px; border:1px solid var(--rule);
+  color:var(--ink-muted);
+}
+.tag.pedagogical{ color:var(--accent-quant); border-color:var(--accent-quant-soft); background:var(--accent-quant-soft);}
+.tag.paper{ color:var(--accent-signal); border-color:var(--accent-signal-soft); background:var(--accent-signal-soft);}
+
+/* ============================= LAYOUT ============================= */
+.page{ display:grid; grid-template-columns: 250px minmax(0,1fr); max-width:1320px; margin:0 auto; }
+@media (max-width:980px){ .page{ grid-template-columns:1fr; } }
+
+nav.toc{
+  position:sticky; top:0; align-self:start; height:100vh; overflow-y:auto;
+  padding:2rem 1.2rem 2rem 1.6rem; border-right:1px solid var(--rule);
+}
+@media (max-width:980px){
+  nav.toc{ position:static; height:auto; border-right:none; border-bottom:1px solid var(--rule); padding:1rem 1.2rem; }
+  nav.toc .toc-list{ display:none; }
+}
+nav.toc .brand{
+  font-family:var(--font-display); font-weight:600; font-size:1.05rem; margin-bottom:1.6rem;
+  display:flex; align-items:center; gap:.5em;
+}
+nav.toc .brand .mark{ color:var(--accent-signal); font-size:1.2em; }
+.toc-list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.15rem;}
+.toc-list a{
+  display:flex; gap:.6em; align-items:baseline; text-decoration:none; color:var(--ink-muted);
+  font-size:.86rem; padding:.4em .5em; border-radius:6px; border-left:2px solid transparent;
+}
+.toc-list a .n{ font-family:var(--font-mono); font-size:.72rem; color:var(--ink-faint); }
+.toc-list a:hover{ background:var(--surface-2); color:var(--ink); }
+.toc-list a.active{ color:var(--accent-signal); border-left-color:var(--accent-signal); background:var(--accent-signal-soft); }
+.toc-foot{ margin-top:1.5rem; padding-top:1rem; border-top:1px solid var(--rule); font-size:.78rem; color:var(--ink-faint); }
+.theme-toggle{
+  font-family:var(--font-mono); font-size:.72rem; background:var(--surface-2); border:1px solid var(--rule);
+  color:var(--ink-muted); border-radius:6px; padding:.35em .6em; cursor:pointer; margin-top:.8rem;
+}
+.theme-toggle:hover{ color:var(--ink); }
+
+main{ min-width:0; }
+section{ padding:5.5rem clamp(1.3rem,4vw,4.5rem) 0; scroll-margin-top:1rem; }
+section:last-of-type{ padding-bottom:5rem; }
+.section-inner{ max-width:960px; }
+.kicker-row{ display:flex; align-items:center; gap:.8em; margin-bottom:.3em; }
+
+.panel{
+  background:var(--surface); border:1px solid var(--rule); border-radius:var(--radius);
+  box-shadow:var(--shadow); padding:1.4rem 1.5rem; margin:1.6rem 0;
+}
+.panel-title{ font-family:var(--font-mono); font-size:.75rem; letter-spacing:.07em; text-transform:uppercase;
+  color:var(--ink-muted); margin-bottom:1rem; display:flex; justify-content:space-between; align-items:center; gap:1em; flex-wrap:wrap;}
+
+.grid-2{ display:grid; grid-template-columns:1fr 1fr; gap:1.4rem; }
+@media (max-width:760px){ .grid-2{ grid-template-columns:1fr; } }
+
+table{ border-collapse:collapse; width:100%; font-size:.88rem; }
+table caption{ caption-side:top; text-align:left; font-family:var(--font-mono); font-size:.75rem; color:var(--ink-muted); margin-bottom:.5em; text-transform:uppercase; letter-spacing:.06em;}
+th,td{ text-align:left; padding:.5em .7em; border-bottom:1px solid var(--rule); font-variant-numeric:tabular-nums; }
+th{ font-family:var(--font-mono); font-weight:600; color:var(--ink-muted); font-size:.76rem; text-transform:uppercase; letter-spacing:.04em;}
+td.num, th.num{ text-align:right; font-family:var(--font-mono); }
+.table-wrap{ overflow-x:auto; }
+
+button.btn{
+  font-family:var(--font-mono); font-size:.8rem; background:var(--surface-2); color:var(--ink);
+  border:1px solid var(--rule); border-radius:7px; padding:.5em .9em; cursor:pointer;
+  transition:background .15s, border-color .15s;
+}
+button.btn:hover{ border-color:var(--accent-signal); }
+button.btn:focus-visible, a:focus-visible, input:focus-visible{ outline:2px solid var(--accent-signal); outline-offset:2px; }
+button.btn.primary{ background:var(--accent-signal); color:#06211e; border-color:var(--accent-signal); font-weight:600;}
+button.btn:disabled{ opacity:.4; cursor:not-allowed; }
+.btn-row{ display:flex; gap:.6em; flex-wrap:wrap; align-items:center; }
+
+.control{ display:flex; flex-direction:column; gap:.35em; font-size:.82rem; color:var(--ink-muted); }
+.control input[type=range]{ accent-color:var(--accent-signal); width:100%; }
+.control select{
+  font-family:var(--font-mono); font-size:.82rem; background:var(--surface-2); color:var(--ink);
+  border:1px solid var(--rule); border-radius:6px; padding:.4em .5em;
+}
+.pillgroup{ display:flex; gap:.4em; flex-wrap:wrap; }
+.pill{
+  font-family:var(--font-mono); font-size:.78rem; padding:.35em .8em; border-radius:20px;
+  border:1px solid var(--rule); background:var(--surface-2); color:var(--ink-muted); cursor:pointer;
+}
+.pill.active{ background:var(--accent-signal-soft); border-color:var(--accent-signal); color:var(--accent-signal); }
+
+.stat{ display:flex; flex-direction:column; gap:.1em; }
+.stat .v{ font-family:var(--font-mono); font-size:1.35rem; font-weight:600; }
+.stat .k{ font-size:.75rem; color:var(--ink-muted); text-transform:uppercase; letter-spacing:.05em; }
+.stat-row{ display:flex; gap:2rem; flex-wrap:wrap; margin:1rem 0; }
+
+.callout{ border-left:3px solid var(--accent-quant); background:var(--accent-quant-soft); border-radius:0 8px 8px 0; padding:.9em 1.1em; font-size:.92rem; margin:1.2rem 0; }
+.callout p:last-child{ margin-bottom:0; }
+.callout.note{ border-left-color:var(--accent-signal); background:var(--accent-signal-soft); }
+
+hr.rule{ border:none; border-top:1px solid var(--rule); margin:2.5rem 0; }
+
+/* hero */
+.hero{ padding-top:3.6rem; }
+.hero h1{ font-size:clamp(2.3rem,4.2vw,3.4rem); line-height:1.05; max-width:14ch; }
+.hero .lede{ font-size:1.12rem; color:var(--ink-muted); max-width:56ch; }
+.hero-meta{ display:flex; gap:1.6rem; flex-wrap:wrap; margin-top:1.6rem; font-family:var(--font-mono); font-size:.78rem; color:var(--ink-faint); }
+.hero-meta a{ color:var(--ink-muted); }
+
+canvas{ display:block; width:100%; }
+svg{ display:block; width:100%; height:auto; overflow:visible; }
+.viz-caption{ font-size:.78rem; color:var(--ink-faint); margin-top:.6rem; font-family:var(--font-mono); }
+
+.bars{ display:flex; align-items:flex-end; gap:6px; height:120px; }
+.bars .bar{ flex:1; border-radius:3px 3px 0 0; position:relative; min-width:6px; }
+.bars .bar .lbl{ position:absolute; top:-1.3em; left:0; right:0; text-align:center; font-family:var(--font-mono); font-size:.66rem; color:var(--ink-faint); }
+
+.legend{ display:flex; gap:1.2em; flex-wrap:wrap; font-size:.78rem; color:var(--ink-muted); margin-top:.6em;}
+.legend .sw{ display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:.4em; vertical-align:middle;}
+
+.step-dots{ display:flex; gap:.4em; margin-bottom:1em; }
+.step-dots .dot{ width:8px; height:8px; border-radius:50%; background:var(--surface-3); }
+.step-dots .dot.on{ background:var(--accent-signal); }
+
+.footer-note{ padding:3rem clamp(1.3rem,4vw,4.5rem) 4rem; color:var(--ink-faint); font-size:.85rem; }
+.footer-note a{ color:var(--ink-muted); }
+ul.src-list{ padding-left:1.1em; }
+ul.src-list li{ margin-bottom:.4em; }
+</style>
+
+<div class="page">
+  <nav class="toc">
+    <div class="brand"><span class="mark">&#8635;</span> TurboQuant Primer</div>
+    <ul class="toc-list" id="tocList">
+      <li><a href="#why"><span class="n">00</span> Why quantize</a></li>
+      <li><a href="#rotation"><span class="n">01</span> The rotation trick</a></li>
+      <li><a href="#lloyd-max"><span class="n">02</span> Lloyd&ndash;Max codebook</a></li>
+      <li><a href="#algorithm-1"><span class="n">03</span> Algorithm 1 &mdash; mse</a></li>
+      <li><a href="#algorithm-2"><span class="n">04</span> Algorithm 2 &mdash; prod / QJL</a></li>
+      <li><a href="#polarquant"><span class="n">05</span> PolarQuant</a></li>
+      <li><a href="#worked-simple"><span class="n">06</span> Worked example: simple</a></li>
+      <li><a href="#worked-moderate"><span class="n">07</span> Worked example: moderate</a></li>
+      <li><a href="#compression"><span class="n">08</span> Bit-rate math</a></li>
+      <li><a href="#sources"><span class="n">09</span> Sources</a></li>
+    </ul>
+    <div class="toc-foot">
+      Read top to bottom &mdash; every section builds on the last.
+      <button class="theme-toggle" id="themeToggle" type="button">Toggle theme</button>
+    </div>
+  </nav>
+
+  <main>
+    <section class="hero" id="top">
+      <div class="section-inner">
+        <div class="eyebrow">An interactive reading of three ICLR/arXiv papers</div>
+        <h1>How TurboQuant squeezes a KV cache down to 2&ndash;4 bits per number</h1>
+        <p class="lede">Random rotation turns any vector &mdash; even an adversarial one &mdash; into coordinates
+        with a known, fixed statistical shape. Once the shape is known in advance, you can solve for the
+        <em>provably optimal</em> quantizer once, offline, and reuse it forever. That's the entire idea.
+        Everything below derives from it, worked out in formulas you can step through by hand.</p>
+        <div class="hero-meta">
+          <span>arXiv:2504.19874 &middot; TurboQuant</span>
+          <span>arXiv:2406.03482 &middot; QJL</span>
+          <span>arXiv:2502.02617 &middot; PolarQuant</span>
+        </div>
+      </div>
+      <div class="panel" style="margin-top:2.2rem;">
+        <div class="panel-title">
+          <span>Live pipeline &mdash; a unit vector, rotated and re-quantized on every pass</span>
+          <span class="mono" id="heroTick" style="color:var(--ink-faint);">t = 0</span>
+        </div>
+        <canvas id="heroCanvas" height="220"></canvas>
+        <div class="viz-caption">rotate &rarr; snap each coordinate to its nearest codebook centroid &rarr; rotate back. Norm is preserved; direction drifts by a controlled, bounded amount.</div>
+      </div>
+    </section>
+
+    <section id="why">
+      <div class="section-inner">
+        <div class="eyebrow">00 &middot; The problem</div>
+        <h2>A KV cache is just a pile of vectors you must shrink</h2>
+        <p>Every attention layer stores a key and a value vector per token, per layer, per head. At fp16, a
+        single <code>d=128</code> vector costs 256 bytes. Multiply by tens of thousands of tokens and dozens
+        of layers and the cache dwarfs the model weights. The fix is scalar quantization: represent each
+        coordinate with a few bits instead of sixteen. The hard part is choosing <em>which</em> few bits,
+        for data you haven't seen yet, without a calibration pass.</p>
+        <div class="callout note">
+          <p><strong>Data-oblivious, by construction.</strong> TurboQuant needs no calibration set, no
+          per-tensor scale/zero-point, no Hessian statistics. It works identically on the first token of a
+          brand-new stream as on the ten-thousandth. That constraint &mdash; solved once, applied forever
+          &mdash; is what shapes every design choice below.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="rotation">
+      <div class="section-inner">
+        <div class="eyebrow">01 &middot; The core trick</div>
+        <h2>Rotation converts an unknown input into a known distribution</h2>
+        <p>Take any unit vector <code>x &isin; S<sup>d-1</sup></code> &mdash; worst case, even adversarially
+        chosen. Multiply it by a random orthogonal matrix <code>&Pi;</code> (the paper's construction: QR-decompose
+        a random Gaussian matrix). Rotations preserve the uniform measure on the sphere, so <code>&Pi;x</code>
+        is still uniform on <code>S<sup>d-1</sup></code> &mdash; regardless of what <code>x</code> was. And a
+        uniform point on a hypersphere has a coordinate distribution you can write down in closed form:</p>
+        <div class="formula">f<sub class="op">X</sub>(x) &nbsp;=&nbsp; <span class="op">&Gamma;(d/2)</span> / (&radic;&pi; &middot; <span class="op">&Gamma;((d&minus;1)/2)</span>) &middot; (1 &minus; x&sup2;)<sup>(d&minus;3)/2</sup>,&nbsp;&nbsp; x &isin; [&minus;1, 1]</div>
+        <p>a scaled Beta density that converges to <code>N(0, 1/d)</code> as <code>d &rarr; &infin;</code>. In
+        high dimensions the paper further notes coordinates become <em>almost independent</em> &mdash; enough
+        to quantize each one with its own scalar quantizer and lose little to ignored correlation.</p>
+
+        <div class="panel">
+          <div class="panel-title">
+            <span>Try it &mdash; rotate a worst-case vector and watch the coordinates spread out</span>
+          </div>
+          <div class="grid-2">
+            <div>
+              <div class="control" style="margin-bottom:1rem;">
+                <label for="rotDim">dimension d</label>
+                <div class="pillgroup" id="rotDimPills"></div>
+              </div>
+              <div class="control" style="margin-bottom:1rem;">
+                <label>input vector shape</label>
+                <div class="pillgroup" id="rotShapePills">
+                  <button class="pill active" data-shape="onehot">one-hot spike</button>
+                  <button class="pill" data-shape="twospike">two-spike</button>
+                  <button class="pill" data-shape="random">random direction</button>
+                </div>
+              </div>
+              <div class="btn-row"><button class="btn primary" id="rerollBtn">re-roll &Pi;</button></div>
+              <p class="viz-caption" style="margin-top:1rem;">Before: <span id="beforeStat"></span></p>
+              <p class="viz-caption">After: <span id="afterStat"></span></p>
+            </div>
+            <div>
+              <svg id="rotHist" viewBox="0 0 360 220"></svg>
+              <div class="legend">
+                <span><span class="sw" style="background:var(--ink-faint);"></span>x (before &Pi;)</span>
+                <span><span class="sw" style="background:var(--accent-signal);"></span>&Pi;x (after) vs. f<sub>X</sub></span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p>Notice: no matter how concentrated <code>x</code> starts &mdash; even a single 1 and the rest
+        zeros &mdash; <code>&Pi;x</code> lands close to the theoretical curve. That curve is the same curve
+        for <em>every</em> input. It's this predictability that lets the next step precompute a quantizer once.</p>
+      </div>
+    </section>
+
+    <section id="lloyd-max">
+      <div class="section-inner">
+        <div class="eyebrow">02 &middot; The optimal scalar quantizer</div>
+        <h2>Lloyd&ndash;Max: continuous 1-D k-means over a known density</h2>
+        <p>Quantizing one rotated coordinate to <code>b</code> bits means choosing <code>2<sup>b</sup></code>
+        centroids to minimize expected squared error under <code>f<sub>X</sub></code>:</p>
+        <div class="formula">C(f<sub class="op">X</sub>, b) := min &sum;<sub>i</sub> &int;<sub>bucket i</sub> |x &minus; c<sub class="q">i</sub>|&sup2; &middot; f<sub class="op">X</sub>(x) dx</div>
+        <p>Because the density is fixed and known ahead of time, this reduces to classic Lloyd's algorithm:
+        boundaries sit at midpoints between neighboring centroids; each centroid is recomputed as the
+        conditional mean of its bucket; repeat to convergence. It depends only on <code>(d, b)</code>
+        &mdash; never on the data &mdash; so it's solved <em>once</em> and cached forever, exactly the
+        <code>_codebook_cache</code> pattern any real implementation uses.</p>
+
+        <div class="panel">
+          <div class="panel-title">
+            <span>Run Lloyd&ndash;Max yourself on the true Beta density</span>
+            <span class="mono" id="lmIterLabel" style="color:var(--ink-faint);">iteration 0</span>
+          </div>
+          <div class="grid-2">
+            <div>
+              <svg id="lmChart" viewBox="0 0 380 220"></svg>
+              <div class="legend">
+                <span><span class="sw" style="background:var(--accent-signal);"></span>f<sub>X</sub>(x)</span>
+                <span><span class="sw" style="background:var(--accent-quant);"></span>centroids</span>
+                <span><span class="sw" style="background:var(--ink-faint);"></span>boundaries</span>
+              </div>
+            </div>
+            <div>
+              <div class="control" style="margin-bottom:1rem;">
+                <label for="lmBits">bits per coordinate &mdash; b = <span id="lmBitsVal">2</span> (2<sup>b</sup> = <span id="lmCentroidCount">4</span> centroids)</label>
+                <input type="range" id="lmBits" min="1" max="4" step="1" value="2">
+              </div>
+              <div class="control" style="margin-bottom:1rem;">
+                <label for="lmDim">dimension d = <span id="lmDimVal">128</span></label>
+                <input type="range" id="lmDim" min="2" max="512" step="1" value="128">
+              </div>
+              <div class="btn-row" style="margin-bottom:1rem;">
+                <button class="btn" id="lmStep">step once</button>
+                <button class="btn primary" id="lmRun">run to convergence</button>
+                <button class="btn" id="lmReset">reset (random init)</button>
+              </div>
+              <div class="stat-row">
+                <div class="stat"><span class="v mono" id="lmDistortion">&mdash;</span><span class="k">d &middot; C(f<sub>X</sub>,b), this run</span></div>
+                <div class="stat"><span class="v mono" id="lmPaper">&mdash;</span><span class="k">paper's reported bound</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p>The paper reports these exact bounds for the vector-level MSE <code>D<sub>mse</sub> = d &middot; C(f<sub>X</sub>,b)</code>
+        (identity that follows because rotation preserves norm, so total squared error is just <code>d</code> times
+        one coordinate's error):</p>
+        <div class="table-wrap">
+        <table>
+          <caption>Theorem 1 &mdash; distortion bound by bit-width</caption>
+          <thead><tr><th>b</th><th class="num">2<sup>b</sup> centroids</th><th class="num">D<sub>mse</sub> upper bound</th><th class="num">general bound (3/2)&middot;4<sup>&minus;b</sup></th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td class="num">2</td><td class="num">0.360</td><td class="num">0.375</td></tr>
+            <tr><td>2</td><td class="num">4</td><td class="num">0.117</td><td class="num">0.094</td></tr>
+            <tr><td>3</td><td class="num">8</td><td class="num">0.030</td><td class="num">0.023</td></tr>
+            <tr><td>4</td><td class="num">16</td><td class="num">0.009</td><td class="num">0.006</td></tr>
+          </tbody>
+        </table>
+        </div>
+        <p>The information-theoretic floor (Shannon Lower Bound, via a hypersphere test-channel argument, combined
+        with Yao's minimax principle) is <code>D<sub>mse</sub>(Q) &ge; 4<sup>&minus;b</sup></code> for
+        <em>any</em> quantizer whatsoever. TurboQuant's bound sits at roughly <strong>2.7&times;</strong> that
+        floor in the worst case &mdash; and only <strong>1.45&times;</strong> away at <code>b=1</code>. A fixed,
+        fifteen-line, calibration-free quantizer is within a small constant factor of information-theoretic optimality.</p>
+        <div class="callout">
+          <p><strong>A deliberate omission.</strong> Each bucket's occupation probability is known exactly from
+          the same solve, so entropy-coding the indices would shave the effective bit-width down toward the
+          codebook's entropy (~3.8 bits at b=4, roughly 5% smaller). The paper explicitly skips this &mdash;
+          simplicity and speed over squeezing out the last few percent.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="algorithm-1">
+      <div class="section-inner">
+        <div class="eyebrow">03 &middot; Putting it together</div>
+        <h2>Algorithm 1 &mdash; TurboQuant<sub>mse</sub></h2>
+        <div class="panel">
+          <div class="panel-title"><span>Pseudocode, verbatim structure</span><span class="tag paper">from the paper</span></div>
+          <div class="formula" style="line-height:1.85;">
+setup (once per (d,b), data-independent):<br>
+&nbsp;&nbsp;1&nbsp; &Pi; &larr; QR( random Gaussian d&times;d matrix )<br>
+&nbsp;&nbsp;2&nbsp; centroids c<sub class="q">1..2^b</sub> &larr; Lloyd&ndash;Max solve of Eq.(4)<br>
+<br>
+Quant<sub class="op">mse</sub>(x):&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:var(--ink-faint);"># x unit-norm</span><br>
+&nbsp;&nbsp;y &larr; &Pi; &middot; x<br>
+&nbsp;&nbsp;for j in 1..d:&nbsp; idx<sub>j</sub> &larr; argmin<sub>k</sub> |y<sub>j</sub> &minus; c<sub class="q">k</sub>|<br>
+&nbsp;&nbsp;return idx&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:var(--ink-faint);"># d indices, b bits each</span><br>
+<br>
+DeQuant<sub class="op">mse</sub>(idx):<br>
+&nbsp;&nbsp;&#7823; &larr; c<sub class="q">idx</sub>&nbsp;&nbsp;(componentwise lookup)<br>
+&nbsp;&nbsp;return &Pi;<sup>&#8868;</sup> &middot; &#7823;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:var(--ink-faint);"># orthogonal &rArr; &Pi;&#8868; = &Pi;&supminus;&sup1;</span>
+          </div>
+          <p style="margin-top:1rem;">A non-unit vector stores <code>&#8214;x&#8214;&#8322;</code> as one extra float
+          and rescales after dequantization &mdash; one scalar for the whole vector, not a per-block
+          scale/zero-point pair per number.</p>
+        </div>
+        <p>Two practical substitutions every real system makes, including community implementations:
+        replacing the dense <code>O(d&sup2;)</code> QR-rotation with an <code>O(d log d)</code>
+        Fast Walsh&ndash;Hadamard Transform plus random sign flips, and replacing brute-force
+        <code>argmin</code> over centroids with binary search over sorted boundaries
+        (<code>O(b)</code> instead of <code>O(2<sup>b</sup>)</code>). Both are algorithmically equivalent
+        in outcome &mdash; faster paths to the same distribution and the same nearest-centroid answer.</p>
+      </div>
+    </section>
+
+    <section id="algorithm-2">
+      <div class="section-inner">
+        <div class="eyebrow">04 &middot; Fixing a bias</div>
+        <h2>Algorithm 2 &mdash; TurboQuant<sub>prod</sub>, and why it needs QJL</h2>
+        <p>Algorithm 1 minimizes MSE, not inner-product error. At <code>b=1</code> the optimal centroids are
+        <code>&plusmn;&radic;(2/&pi;)/&radic;d</code>, so dequantization is a fixed shrink-and-sign operation.
+        Plugging that into <code>E[&lang;y, DeQuant(Quant(x))&rang;]</code> gives exactly:</p>
+        <div class="formula">E<span class="op">[</span>&lang;y, x&#771;&rang;<span class="op">]</span> &nbsp;=&nbsp; (2/&pi;) &middot; &lang;y, x&rang; &nbsp;&nbsp;&nbsp; <span style="color:var(--ink-faint);">&asymp; 0.6366 &times; &lang;y,x&rang;</span></div>
+        <p>The MSE-optimal quantizer systematically <em>shrinks</em> estimated inner products by about 36% at
+        one bit. For attention scores, that's a bias you can't calibrate away after the fact.</p>
+
+        <div class="panel">
+          <div class="panel-title"><span>The fix: quantize with one fewer bit, then correct the leftover</span></div>
+          <div class="formula" style="line-height:1.85;">
+Quant<sub class="op">prod</sub>(x)&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:var(--ink-faint);"># (b&minus;1)-bit MSE stage + 1-bit QJL correction</span><br>
+&nbsp;&nbsp;idx &larr; Quant<sub class="op">mse</sub>(x)&nbsp;&nbsp;&nbsp;at bit-width (b&minus;1)<br>
+&nbsp;&nbsp;r &larr; x &minus; DeQuant<sub class="op">mse</sub>(idx)&nbsp;&nbsp;&nbsp;<span style="color:var(--ink-faint);"># small residual</span><br>
+&nbsp;&nbsp;qjl &larr; sign(S &middot; r)&nbsp;&nbsp;&nbsp;S<sub>ij</sub> ~ N(0,1)&nbsp;&nbsp;<span style="color:var(--ink-faint);"># 1 bit / coord</span><br>
+&nbsp;&nbsp;return (idx, qjl, &#8214;r&#8214;&#8322;)<br>
+<br>
+DeQuant<sub class="op">prod</sub>(idx, qjl, &rho;):<br>
+&nbsp;&nbsp;x&#771;<sub>mse</sub> &larr; DeQuant<sub class="op">mse</sub>(idx)<br>
+&nbsp;&nbsp;x&#771;<sub>qjl</sub> &larr; &radic;(&pi;/2)/d &middot; &rho; &middot; S<sup>&#8868;</sup>&middot;qjl<br>
+&nbsp;&nbsp;return x&#771;<sub>mse</sub> + x&#771;<sub>qjl</sub>
+          </div>
+        </div>
+
+        <p>Why does correcting only the <em>residual</em> with random signs restore unbiasedness? Decompose
+        the other vector <code>y</code> relative to <code>x</code> into a parallel part
+        <code>y&#8741; = (&lang;y,x&rang;/&#8214;x&#8214;&sup2;)x</code> and an orthogonal part
+        <code>y&perp;</code>. Project both through the same random direction <code>s</code>:</p>
+
+        <div class="panel">
+          <div class="panel-title"><span>Why the orthogonal part cancels &mdash; the geometry behind QJL's proof</span></div>
+          <svg id="qjlDiagram" viewBox="0 0 420 260"></svg>
+          <p class="viz-caption">Drag the angle between x and y. <code>s&middot;x</code> and <code>s&middot;y&perp;</code>
+          are independent zero-mean Gaussians whenever <code>y&perp; &perp; x</code> &mdash; so
+          <code>E[sign(s&middot;x) &middot; (s&middot;y&perp;)] = 0</code> for any single random direction s, and
+          only the parallel component survives in expectation.</p>
+          <div class="control" style="margin-top:.8rem; max-width:320px;">
+            <label for="qjlAngle">angle between x and y</label>
+            <input type="range" id="qjlAngle" min="5" max="175" value="55">
+          </div>
+        </div>
+        <p>What remains is a known constant: <code>E|N(0,&sigma;&sup2;)| = &sigma;&radic;(2/&pi;)</code>, the
+        half-normal mean. The <code>&radic;(&pi;/2)</code> in <code>DeQuant<sub>qjl</sub></code> is chosen
+        precisely to cancel it, leaving <code>E[&lang;y,x&#771;&rang;] = &lang;y,x&rang;</code> exactly &mdash;
+        unbiased, at the cost of variance <code>&le; (&pi;/2)&middot;&#8214;y&#8214;&sup2;/d</code>.</p>
+        <div class="table-wrap">
+        <table>
+          <caption>Theorem 2 &mdash; inner-product distortion bound, D<sub>prod</sub>&middot;d / &#8214;y&#8214;&sup2;</caption>
+          <thead><tr><th>b</th><th class="num">upper bound</th><th class="num">lower bound (any quantizer), 4<sup>&minus;b</sup></th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td class="num">1.57</td><td class="num">0.25</td></tr>
+            <tr><td>2</td><td class="num">0.56</td><td class="num">0.0625</td></tr>
+            <tr><td>3</td><td class="num">0.18</td><td class="num">0.0156</td></tr>
+            <tr><td>4</td><td class="num">0.047</td><td class="num">0.0039</td></tr>
+          </tbody>
+        </table>
+        </div>
+        <div class="callout">
+          <p><strong>QJL on a residual is a different regime than QJL on a raw vector.</strong> The standalone
+          QJL paper applies <code>sign(S&middot;k)</code> directly to a whole key vector, and &mdash;
+          because quantizing <em>both</em> sides of an inner product to signs only recovers the angle, and
+          <code>cos(&middot;)</code> is nonlinear &mdash; keeps the query un-quantized (<code>S&middot;q</code>
+          stays real-valued). TurboQuant instead applies the same 1-bit sign trick only to whatever's left
+          over after an accurate <code>(b&minus;1)</code>-bit stage, so the residual's norm is already small.
+          That's also, independently, why real systems give keys more bits than values: key errors get
+          exponentiated inside softmax, value errors just average out in a weighted sum.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="polarquant">
+      <div class="section-inner">
+        <div class="eyebrow">05 &middot; The companion technique</div>
+        <h2>PolarQuant &mdash; the same insight, in polar coordinates</h2>
+        <p>PolarQuant is not a third stage bolted onto TurboQuant &mdash; the papers benchmark it as a
+        parallel, alternative pipeline, sharing the same root idea: a random preconditioning step makes an
+        otherwise-arbitrary vector look like a draw from a known, favorable distribution. Where TurboQuant
+        exploits that in Cartesian coordinates, PolarQuant exploits it in a recursive polar decomposition.</p>
+        <div class="panel">
+          <div class="panel-title"><span>Recursive Cartesian &rarr; polar decomposition, d = 8</span></div>
+          <svg id="polarTree" viewBox="0 0 640 300"></svg>
+          <p class="viz-caption">Pair coordinates &rarr; one radius + one angle per pair &rarr; recurse on the
+          radii. log&#8322;d levels turn a length-d vector into one final radius and d&minus;1 angles.</p>
+        </div>
+        <p>For a preconditioned (near-Gaussian) vector, the joint density of <code>(r, &theta;<sup>(1)</sup>,&hellip;,&theta;<sup>(log&#8322;d)</sup>)</code>
+        factorizes completely. Level-1 angles are uniform on <code>[0,2&pi;)</code>. Every deeper level
+        concentrates around <code>&pi;/4</code>:</p>
+        <div class="formula">f(&theta;) &prop; sin<sup>2<sup class="op">&#8467;&minus;1</sup>&minus;1</sup>(2&theta;),&nbsp;&nbsp; &theta; &isin; [0, &pi;/2],&nbsp;&nbsp; level &#8467; &ge; 2</div>
+        <div class="panel">
+          <div class="panel-title"><span>Angle concentration by recursion depth</span></div>
+          <div class="grid-2">
+            <div><svg id="polarAngleChart" viewBox="0 0 340 200"></svg></div>
+            <div>
+              <div class="control">
+                <label for="polarLevel">recursion level &#8467; = <span id="polarLevelVal">2</span></label>
+                <input type="range" id="polarLevel" min="2" max="7" step="1" value="2">
+              </div>
+              <p class="viz-caption" style="margin-top:1rem;">Deeper levels are almost deterministic &mdash;
+              near <code>&pi;/4</code> with vanishing variance &mdash; so a couple of bits pin them down
+              precisely. The <em>same</em> Lloyd&ndash;Max recipe from &sect;02 reapplies here, just against
+              this <code>sin</code>-power density instead of the Beta density.</p>
+            </div>
+          </div>
+        </div>
+        <p>The payoff: with <code>O(log(1/&epsilon;))</code> bits per coordinate plus one scalar norm for the
+        whole vector, PolarQuant reaches expected distortion <code>&epsilon;&middot;&#8214;x&#8214;&sup2;</code>
+        &mdash; the same rate an <code>&epsilon;</code>-net over the sphere would need, without ever building
+        or searching that combinatorially large net.</p>
+      </div>
+    </section>
+
+    <section id="worked-simple">
+      <div class="section-inner">
+        <div class="eyebrow">06 &middot; Hand-verifiable example</div>
+        <div class="kicker-row"><h2 style="margin:0;">Simple: d = 4, b = 1</h2><span class="tag pedagogical">constructed for this primer</span></div>
+        <p>The papers never work a small example numerically &mdash; every reported number is asymptotic or
+        measured at real scale (d=128, d=1536). This one is small enough to trace by hand, using the paper's
+        own asymptotic 1-bit centroid formula <code>c = &plusmn;&radic;(2/&pi;)/&radic;d</code> and a concrete
+        Hadamard rotation as a stand-in orthogonal matrix.</p>
+        <div class="panel">
+          <div class="panel-title">
+            <span>Step through it</span>
+            <span class="btn-row"><button class="btn" id="s1Prev">&larr; back</button><button class="btn primary" id="s1Next">next &rarr;</button></span>
+          </div>
+          <div class="step-dots" id="s1Dots"></div>
+          <div id="s1Body"></div>
+        </div>
+        <p>Input <code>x = (1,0,0,0)</code> is the worst case for naive per-axis quantization &mdash; all
+        mass on one coordinate. After rotation every coordinate is a moderate, equal <code>0.5</code>: the
+        concentration effect from &sect;01, in miniature.</p>
+        <div class="callout">
+          <p>Final error here (<code>&#8214;x&minus;x&#771;&#8214;&sup2; &asymp; 0.041</code>) lands comfortably
+          under the paper's <em>expected-case</em> bound of 0.36 &mdash; expected, since that bound averages
+          over random rotations and worst-case inputs, while this is one hand-picked sample under one
+          specific rotation. It isn't evidence the bound is loose.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="worked-moderate">
+      <div class="section-inner">
+        <div class="eyebrow">07 &middot; A lumpier case</div>
+        <div class="kicker-row"><h2 style="margin:0;">Moderate: d = 8, b = 2</h2><span class="tag pedagogical">constructed for this primer</span></div>
+        <p>Same pipeline, larger dimension, more centroids, and an input with structure (four moderate
+        coordinates, four small ones) rather than a single spike. All values below are computed live in your
+        browser from the actual Hadamard-transform and Lloyd&ndash;Max codebook &mdash; drag any slider to
+        try your own vector.</p>
+        <div class="panel">
+          <div class="panel-title"><span>d = 8 pipeline, live</span></div>
+          <div class="grid-2">
+            <div>
+              <p class="viz-caption" style="margin-bottom:.6em;">input x (drag each bar)</p>
+              <div id="modInputs"></div>
+              <div class="btn-row" style="margin-top:1rem;">
+                <button class="btn" id="modPreset1">preset: lumpy</button>
+                <button class="btn" id="modPreset2">preset: spike</button>
+                <button class="btn" id="modRandom">randomize</button>
+              </div>
+            </div>
+            <div>
+              <div class="stat-row">
+                <div class="stat"><span class="v mono" id="modErr">&mdash;</span><span class="k">&#8214;x&minus;x&#771;&#8214;&sup2;</span></div>
+                <div class="stat"><span class="v mono" id="modNorm">&mdash;</span><span class="k">&#8214;x&#8214;</span></div>
+              </div>
+              <p class="viz-caption" id="modNote" style="margin-top:.4rem;"></p>
+            </div>
+          </div>
+          <hr class="rule" style="margin:1.4rem 0;">
+          <p class="viz-caption" style="margin-bottom:.4em;">y = &Pi;x (rotated) &mdash; colored by which of the 4 centroids each coordinate lands in</p>
+          <div id="modRotated" class="bars"></div>
+          <p class="viz-caption" style="margin:1rem 0 .4em;">x&#771; = &Pi;<sup>&#8868;</sup>&#7823; (reconstructed) vs. original x</p>
+          <div id="modRecon" class="bars"></div>
+        </div>
+        <p>Watch the all-ones (DC) direction: a vector whose mass leans toward a shared mean concentrates
+        disproportionately onto the first Hadamard coefficient, because the fixed Hadamard pattern isn't
+        actually random. That's precisely why practical systems randomize signs before the Hadamard transform
+        &mdash; it restores the no-privileged-axis guarantee that a true QR-random rotation gives for free.</p>
+      </div>
+    </section>
+
+    <section id="compression">
+      <div class="section-inner">
+        <div class="eyebrow">08 &middot; What it buys you</div>
+        <h2>Bit-rate and compression ratio</h2>
+        <p>Packed bytes per vector: <code>&lceil;b&middot;d/8&rceil;</code>, plus a small fixed amount of
+        norm side-information &mdash; not a per-number scale/zero-point.</p>
+        <div class="panel">
+          <div class="panel-title"><span>Calculator</span></div>
+          <div class="grid-2">
+            <div>
+              <div class="control" style="margin-bottom:1rem;">
+                <label for="crDim">dimension d = <span id="crDimVal">128</span></label>
+                <input type="range" id="crDim" min="8" max="1536" step="8" value="128">
+              </div>
+              <div class="control">
+                <label for="crBits">bits b = <span id="crBitsVal">4</span></label>
+                <input type="range" id="crBits" min="1" max="8" step="0.5" value="4">
+              </div>
+            </div>
+            <div class="stat-row">
+              <div class="stat"><span class="v mono" id="crPacked">&mdash;</span><span class="k">packed bytes</span></div>
+              <div class="stat"><span class="v mono" id="crFp16">&mdash;</span><span class="k">fp16 bytes</span></div>
+              <div class="stat"><span class="v mono" id="crRatio">&mdash;</span><span class="k">compression ratio</span></div>
+            </div>
+          </div>
+        </div>
+        <p>Fractional bit-widths (2.5, 3.5 &mdash; the paper's real experiments) come from splitting channels
+        into an outlier set and a bulk set, running Algorithm 1/2 at two different integer bit-widths, and
+        averaging: e.g. 32 outlier channels at 3 bits + 96 bulk channels at 2 bits over d=128 averages to
+        exactly 2.5 bits. Not a different algorithm &mdash; mixed precision built from the same integer-bit
+        quantizer, per channel instead of per layer.</p>
+      </div>
+    </section>
+
+    <section id="sources">
+      <div class="section-inner footer-note" style="padding:0;">
+        <div class="eyebrow">09 &middot; Sources</div>
+        <ul class="src-list">
+          <li><strong>TurboQuant</strong> &mdash; Zandieh, Daliri, Hadian, Mirrokni. <span class="mono">arXiv:2504.19874</span>. Algorithms 1 &amp; 2, Theorems 1&ndash;3.</li>
+          <li><strong>QJL</strong> &mdash; Zandieh, Daliri, Han. <span class="mono">arXiv:2406.03482</span>. Definition 3.1, Lemma 3.2/3.5, Theorem 3.6.</li>
+          <li><strong>PolarQuant</strong> &mdash; Han, Kacham, Karbasi, Mirrokni, Zandieh. <span class="mono">arXiv:2502.02617</span>. Definition 1, Lemma 1&ndash;2, Theorem 1.</li>
+          <li><a href="https://research.google/blog/turboquant-redefining-ai-efficiency-with-extreme-compression/">Google Research blog</a> &mdash; high-level framing and the 8&times; H100 kernel result.</li>
+        </ul>
+        <p style="margin-top:1.5rem;">Everything tagged <span class="tag pedagogical">constructed for this primer</span>
+        is a hand-built teaching example, not a number transcribed from a paper; everything tagged
+        <span class="tag paper">from the paper</span> is transcribed directly from the source text.</p>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ---------- theme toggle ---------- */
+var root=document.documentElement;
+var stored=null;
+try{ stored=localStorage.getItem('tq-theme'); }catch(e){}
+if(stored) root.setAttribute('data-theme', stored);
+document.getElementById('themeToggle').addEventListener('click', function(){
+  var cur=root.getAttribute('data-theme');
+  var next = cur==='dark' ? 'light' : (cur==='light' ? null : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'light':'dark'));
+  if(next){ root.setAttribute('data-theme', next); } else { root.removeAttribute('data-theme'); }
+  try{ localStorage.setItem('tq-theme', next || ''); }catch(e){}
+});
+function cssVar(name){ return getComputedStyle(root).getPropertyValue(name).trim(); }
+
+/* ---------- TOC active-section tracking ---------- */
+var tocLinks=Array.prototype.slice.call(document.querySelectorAll('.toc-list a'));
+var sections=tocLinks.map(function(a){ return document.querySelector(a.getAttribute('href')); });
+function updateActive(){
+  var y=window.scrollY+120;
+  var idx=0;
+  for(var i=0;i<sections.length;i++){ if(sections[i] && sections[i].offsetTop<=y) idx=i; }
+  tocLinks.forEach(function(a,i){ a.classList.toggle('active', i===idx); });
+}
+window.addEventListener('scroll', updateActive, {passive:true});
+updateActive();
+
+/* ---------- math helpers ---------- */
+function lanczosGamma(z){
+  var g=7;
+  var p=[0.99999999999980993,676.5203681218851,-1259.1392167224028,771.32342877765313,
+    -176.61502916214059,12.507343278686905,-0.13857109526572012,9.9843695780195716e-6,1.5056327351493116e-7];
+  if(z<0.5){ return Math.PI/(Math.sin(Math.PI*z)*lanczosGamma(1-z)); }
+  z-=1;
+  var x=p[0];
+  for(var i=1;i<g+2;i++) x+=p[i]/(z+i);
+  var t=z+g+0.5;
+  return Math.sqrt(2*Math.PI)*Math.pow(t,z+0.5)*Math.exp(-t)*x;
+}
+function betaDensity(x,d){
+  if(Math.abs(x)>=1) return 0;
+  var num=lanczosGamma(d/2);
+  var den=Math.sqrt(Math.PI)*lanczosGamma((d-1)/2);
+  return (num/den)*Math.pow(1-x*x,(d-3)/2);
+}
+function densityGrid(d,n){
+  n=n||1200;
+  var xs=[],fs=[];
+  for(var i=0;i<=n;i++){
+    var x=-1+2*i/n;
+    xs.push(x); fs.push(Math.max(0,betaDensity(x,d)));
+  }
+  return {xs:xs, fs:fs};
+}
+function lloydMaxStep(centroids, xs, fs){
+  centroids=centroids.slice().sort(function(a,b){return a-b;});
+  var k=centroids.length;
+  var bounds=[-1];
+  for(var i=0;i<k-1;i++) bounds.push((centroids[i]+centroids[i+1])/2);
+  bounds.push(1);
+  var newCent=centroids.slice();
+  var dx=xs[1]-xs[0];
+  for(i=0;i<k;i++){
+    var num=0, den=0;
+    for(var j=0;j<xs.length;j++){
+      if(xs[j]>=bounds[i] && xs[j]<bounds[i+1]){
+        num += xs[j]*fs[j]*dx; den += fs[j]*dx;
+      }
+    }
+    newCent[i] = den>1e-9 ? num/den : centroids[i];
+  }
+  var distortion=0;
+  for(i=0;i<k;i++){
+    for(j=0;j<xs.length;j++){
+      if(xs[j]>=bounds[i] && xs[j]<bounds[i+1]){
+        distortion += (xs[j]-newCent[i])*(xs[j]-newCent[i])*fs[j]*dx;
+      }
+    }
+  }
+  return {centroids:newCent, bounds:bounds, distortion:distortion};
+}
+function initCentroids(k){
+  var c=[];
+  for(var i=0;i<k;i++) c.push(-0.9 + 1.8*i/(k-1||1) + (Math.random()-0.5)*0.05);
+  return c.sort(function(a,b){return a-b;});
+}
+
+/* random orthogonal matrix via QR (Gram-Schmidt) of a Gaussian matrix */
+function randn(){
+  var u=1-Math.random(), v=Math.random();
+  return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);
+}
+function randomOrthogonal(d){
+  var cols=[];
+  for(var j=0;j<d;j++){
+    var v=[]; for(var i=0;i<d;i++) v.push(randn());
+    for(var k=0;k<j;k++){
+      var dot=0; for(i=0;i<d;i++) dot+=v[i]*cols[k][i];
+      for(i=0;i<d;i++) v[i]-=dot*cols[k][i];
+    }
+    var norm=Math.sqrt(v.reduce(function(s,x){return s+x*x;},0))||1;
+    for(i=0;i<d;i++) v[i]/=norm;
+    cols.push(v);
+  }
+  // rows of matrix = we want matrix M such that (M x)_i = cols[i] . x ; store as array of row vectors = cols (since orthonormal set)
+  return cols; // cols[i] is i-th orthonormal row
+}
+function applyMatRows(rows,x){
+  return rows.map(function(row){ var s=0; for(var i=0;i<row.length;i++) s+=row[i]*x[i]; return s; });
+}
+
+/* Hadamard (Sylvester) d x d, d power of 2, normalized, optional sign flips applied to input first */
+function hadamard(d){
+  var H=[[1]];
+  while(H.length<d){
+    var n=H.length, H2=[];
+    for(var i=0;i<n;i++){ H2.push(H[i].concat(H[i])); }
+    for(i=0;i<n;i++){ H2.push(H[i].concat(H[i].map(function(v){return -v;}))); }
+    H=H2;
+  }
+  var s=1/Math.sqrt(d);
+  return H.map(function(row){ return row.map(function(v){return v*s;}); });
+}
+function matVec(M,x){ return M.map(function(row){ var s=0; for(var i=0;i<row.length;i++) s+=row[i]*x[i]; return s; }); }
+function matTVec(M,y){ // M^T y, M is array of rows
+  var d=M[0].length, out=new Array(d).fill(0);
+  for(var i=0;i<M.length;i++){ for(var j=0;j<d;j++){ out[j]+=M[i][j]*y[i]; } }
+  return out;
+}
+function nearestCentroidIdx(v,centroids){
+  var best=0,bd=Infinity;
+  for(var i=0;i<centroids.length;i++){ var dd=Math.abs(v-centroids[i]); if(dd<bd){bd=dd;best=i;} }
+  return best;
+}
+function norm2(v){ return Math.sqrt(v.reduce(function(s,x){return s+x*x;},0)); }
+function sub(a,b){ return a.map(function(v,i){return v-b[i];}); }
+function sqErr(a,b){ var s=0; for(var i=0;i<a.length;i++){ var e=a[i]-b[i]; s+=e*e; } return s; }
+function centroidsFor(bits,d){
+  if(bits===1) return [-Math.sqrt(2/Math.PI)/Math.sqrt(d), Math.sqrt(2/Math.PI)/Math.sqrt(d)];
+  if(bits===2) return [-1.51/Math.sqrt(d), -0.453/Math.sqrt(d), 0.453/Math.sqrt(d), 1.51/Math.sqrt(d)];
+  // numeric Lloyd-Max fallback for other bit widths
+  var k=Math.pow(2,bits);
+  var grid=densityGrid(d, 800);
+  var c=initCentroids(k);
+  for(var it=0; it<60; it++){ var r=lloydMaxStep(c, grid.xs, grid.fs); c=r.centroids; }
+  return c;
+}
+
+var SIGNAL=function(){return cssVar('--accent-signal')||'#0E8C82';};
+var QUANT=function(){return cssVar('--accent-quant')||'#A8650A';};
+var ERROR_C=function(){return cssVar('--accent-error')||'#B23B23';};
+var FAINT=function(){return cssVar('--ink-faint')||'#8A9997';};
+var MUTED=function(){return cssVar('--ink-muted')||'#57696A';};
+var RULE=function(){return cssVar('--rule')||'#C9D3CF';};
+
+function svgEl(tag,attrs){
+  var el=document.createElementNS('http://www.w3.org/2000/svg',tag);
+  for(var k in attrs) el.setAttribute(k, attrs[k]);
+  return el;
+}
+function clearSvg(svg){ while(svg.firstChild) svg.removeChild(svg.firstChild); }
+
+/* ================= HERO ================= */
+(function heroDemo(){
+  var canvas=document.getElementById('heroCanvas');
+  var ctx=canvas.getContext('2d');
+  var tickEl=document.getElementById('heroTick');
+  var d=4, centroids=centroidsFor(1,d);
+  var Pi=randomOrthogonal(d);
+  var t=0, phase=0; // phase 0..1 morph rotate, 1..2 morph quantize snap, 2..3 morph rotate-back
+  var x=[1,0,0,0];
+  function frame(){
+    var w=canvas.clientWidth||600, h=220;
+    canvas.width=w*devicePixelRatio; canvas.height=h*devicePixelRatio;
+    ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+    ctx.clearRect(0,0,w,h);
+    var cx=w/2, cy=h/2, R=Math.min(w,h)/2-30;
+    // draw ring of centroids as ticks (project 4D conceptually as a ring metaphor)
+    ctx.strokeStyle=RULE(); ctx.lineWidth=1;
+    ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2); ctx.stroke();
+    var n=16;
+    for(var i=0;i<n;i++){
+      var a=i/n*Math.PI*2;
+      var inBucket = (Math.floor((t*0.02)+i)%n < n/2);
+      ctx.strokeStyle = inBucket? QUANT(): FAINT();
+      ctx.lineWidth=2;
+      ctx.beginPath();
+      ctx.moveTo(cx+Math.cos(a)*(R-6), cy+Math.sin(a)*(R-6));
+      ctx.lineTo(cx+Math.cos(a)*(R+6), cy+Math.sin(a)*(R+6));
+      ctx.stroke();
+    }
+    var ang = t*0.015 + Math.sin(t*0.008)*0.6;
+    var snap = Math.round(ang/(Math.PI*2/n))*(Math.PI*2/n);
+    var mix = (Math.sin(t*0.02)+1)/2;
+    var drawAng = ang*(1-mix)+snap*mix;
+    ctx.strokeStyle=SIGNAL(); ctx.lineWidth=3; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx+Math.cos(drawAng)*R, cy+Math.sin(drawAng)*R); ctx.stroke();
+    ctx.fillStyle=SIGNAL();
+    ctx.beginPath(); ctx.arc(cx+Math.cos(drawAng)*R, cy+Math.sin(drawAng)*R, 5,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle=MUTED(); ctx.font='11px "IBM Plex Mono", monospace';
+    ctx.fillText('rotate', cx-R-6, cy-R+6);
+    ctx.fillText('snap to nearest centroid', cx-40, cy+R+22);
+    t++;
+    tickEl.textContent='t = '+t;
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+
+/* ================= SECTION 01: rotation histogram ================= */
+(function rotationDemo(){
+  var dims=[4,16,64,128];
+  var pillWrap=document.getElementById('rotDimPills');
+  var curD=64;
+  dims.forEach(function(dv){
+    var b=document.createElement('button');
+    b.className='pill'+(dv===curD?' active':'');
+    b.textContent='d='+dv;
+    b.addEventListener('click',function(){
+      curD=dv;
+      Array.prototype.forEach.call(pillWrap.children,function(c){c.classList.toggle('active',c===b);});
+      run();
+    });
+    pillWrap.appendChild(b);
+  });
+  var shapeButtons=Array.prototype.slice.call(document.querySelectorAll('#rotShapePills .pill'));
+  var curShape='onehot';
+  shapeButtons.forEach(function(btn){
+    btn.addEventListener('click',function(){
+      curShape=btn.getAttribute('data-shape');
+      shapeButtons.forEach(function(b){b.classList.toggle('active',b===btn);});
+      run();
+    });
+  });
+  var Pi=null;
+  document.getElementById('rerollBtn').addEventListener('click', function(){ Pi=null; run(); });
+
+  function makeVec(d,shape){
+    var v=new Array(d).fill(0);
+    if(shape==='onehot'){ v[0]=1; }
+    else if(shape==='twospike'){ v[0]=1/Math.sqrt(2); v[1]=1/Math.sqrt(2); }
+    else { for(var i=0;i<d;i++) v[i]=randn(); var n=norm2(v); for(i=0;i<d;i++) v[i]/=n; }
+    return v;
+  }
+
+  function run(){
+    var svg=document.getElementById('rotHist');
+    clearSvg(svg);
+    var d=curD;
+    if(!Pi || Pi.length!==d) Pi=randomOrthogonal(d);
+    var x=makeVec(d,curShape);
+    var y=applyMatRows(Pi,x);
+    document.getElementById('beforeStat').textContent = 'max |coord| = '+Math.max.apply(null,x.map(Math.abs)).toFixed(3)+', nonzero coords = '+x.filter(function(v){return Math.abs(v)>1e-6;}).length;
+    document.getElementById('afterStat').textContent = 'max |coord| = '+Math.max.apply(null,y.map(Math.abs)).toFixed(3)+', spread across all '+d+' coords';
+
+    var W=360,H=220,ML=28,MB=24,MT=10,MR=10;
+    var plotW=W-ML-MR, plotH=H-MT-MB;
+    var bins=Math.min(24, Math.max(10, Math.round(d/3)));
+    var counts=new Array(bins).fill(0);
+    y.forEach(function(v){
+      var idx=Math.min(bins-1, Math.max(0, Math.floor((v+1)/2*bins)));
+      counts[idx]++;
+    });
+    var maxCount=Math.max.apply(null,counts.concat([1]));
+    var grid=densityGrid(d,200);
+    var maxF=Math.max.apply(null,grid.fs);
+    // scale histogram (as density) for comparability: normalize counts to density estimate
+    var binWidth=2/bins;
+    var densities=counts.map(function(c){return (c/d)/binWidth;});
+    var maxDens=Math.max.apply(null,densities.concat([maxF]))||1;
+
+    for(var i=0;i<bins;i++){
+      var x0=-1+i*binWidth;
+      var px=ML+((x0+1)/2)*plotW;
+      var bw=(binWidth/2)*plotW;
+      var bh=(densities[i]/maxDens)*plotH;
+      svg.appendChild(svgEl('rect',{x:px, y:MT+plotH-bh, width:Math.max(1,bw-1), height:bh, fill:SIGNAL(), opacity:0.55}));
+    }
+    // theoretical density curve
+    var pts=grid.xs.map(function(xv,i){
+      var px=ML+((xv+1)/2)*plotW;
+      var py=MT+plotH-(grid.fs[i]/maxDens)*plotH;
+      return px.toFixed(1)+','+py.toFixed(1);
+    }).join(' ');
+    svg.appendChild(svgEl('polyline',{points:pts, fill:'none', stroke:SIGNAL(), 'stroke-width':2}));
+    // original x as tick marks at bottom
+    x.forEach(function(v){
+      if(Math.abs(v)<1e-6) return;
+      var px=ML+((v+1)/2)*plotW;
+      svg.appendChild(svgEl('line',{x1:px,y1:MT+plotH,x2:px,y2:MT+plotH+8, stroke:FAINT(),'stroke-width':2}));
+    });
+    svg.appendChild(svgEl('line',{x1:ML,y1:MT+plotH,x2:ML+plotW,y2:MT+plotH,stroke:RULE()}));
+    var axisLabel=svgEl('text',{x:ML,y:H-4,'font-family':'IBM Plex Mono, monospace','font-size':'9', fill:FAINT()});
+    axisLabel.textContent='-1';
+    svg.appendChild(axisLabel);
+    var axisLabel2=svgEl('text',{x:ML+plotW-10,y:H-4,'font-family':'IBM Plex Mono, monospace','font-size':'9', fill:FAINT()});
+    axisLabel2.textContent='1';
+    svg.appendChild(axisLabel2);
+  }
+  run();
+})();
+
+/* ================= SECTION 02: Lloyd-Max interactive ================= */
+(function lloydDemo(){
+  var bitsSlider=document.getElementById('lmBits');
+  var dimSlider=document.getElementById('lmDim');
+  var bitsVal=document.getElementById('lmBitsVal');
+  var dimVal=document.getElementById('lmDimVal');
+  var centroidCountEl=document.getElementById('lmCentroidCount');
+  var iterLabel=document.getElementById('lmIterLabel');
+  var distEl=document.getElementById('lmDistortion');
+  var paperEl=document.getElementById('lmPaper');
+  var svg=document.getElementById('lmChart');
+  var paperBounds={1:0.360,2:0.117,3:0.030,4:0.009};
+
+  var state={ bits:2, d:128, centroids:null, iter:0, grid:null };
+
+  function reset(){
+    state.bits=parseInt(bitsSlider.value,10);
+    state.d=parseInt(dimSlider.value,10);
+    state.grid=densityGrid(state.d, 500);
+    state.centroids=initCentroids(Math.pow(2,state.bits));
+    state.iter=0;
+    bitsVal.textContent=state.bits;
+    centroidCountEl.textContent=Math.pow(2,state.bits);
+    dimVal.textContent=state.d;
+    render();
+  }
+  function step(){
+    var r=lloydMaxStep(state.centroids, state.grid.xs, state.grid.fs);
+    state.centroids=r.centroids; state.lastBounds=r.bounds; state.lastDistortion=r.distortion;
+    state.iter++;
+    render();
+  }
+  function runToConv(){
+    var prev=null, tries=0;
+    while(tries<200){
+      var r=lloydMaxStep(state.centroids, state.grid.xs, state.grid.fs);
+      var moved=state.centroids.reduce(function(s,c,i){return s+Math.abs(c-r.centroids[i]);},0);
+      state.centroids=r.centroids; state.lastBounds=r.bounds; state.lastDistortion=r.distortion;
+      state.iter++; tries++;
+      if(moved<1e-6) break;
+    }
+    render();
+  }
+  function render(){
+    clearSvg(svg);
+    var W=380,H=220,ML=26,MB=22,MT=10,MR=10;
+    var plotW=W-ML-MR, plotH=H-MT-MB;
+    var maxF=Math.max.apply(null,state.grid.fs);
+    var pts=state.grid.xs.map(function(xv,i){
+      var px=ML+((xv+1)/2)*plotW, py=MT+plotH-(state.grid.fs[i]/maxF)*plotH;
+      return px.toFixed(1)+','+py.toFixed(1);
+    }).join(' ');
+    svg.appendChild(svgEl('polyline',{points:pts, fill:'none', stroke:SIGNAL(), 'stroke-width':2}));
+    var bounds=state.lastBounds;
+    if(bounds){
+      bounds.slice(1,-1).forEach(function(bv){
+        var px=ML+((bv+1)/2)*plotW;
+        svg.appendChild(svgEl('line',{x1:px,y1:MT,x2:px,y2:MT+plotH, stroke:FAINT(),'stroke-width':1,'stroke-dasharray':'3,3'}));
+      });
+    }
+    state.centroids.forEach(function(c){
+      var px=ML+((c+1)/2)*plotW;
+      svg.appendChild(svgEl('line',{x1:px,y1:MT,x2:px,y2:MT+plotH, stroke:QUANT(),'stroke-width':2}));
+      svg.appendChild(svgEl('circle',{cx:px, cy:MT+plotH, r:4, fill:QUANT()}));
+    });
+    svg.appendChild(svgEl('line',{x1:ML,y1:MT+plotH,x2:ML+plotW,y2:MT+plotH,stroke:RULE()}));
+    iterLabel.textContent='iteration '+state.iter;
+    var dOverall = state.lastDistortion!=null ? (state.lastDistortion*state.d) : null;
+    distEl.textContent = dOverall!=null ? dOverall.toFixed(4) : '—';
+    paperEl.textContent = paperBounds[state.bits] !== undefined ? paperBounds[state.bits].toFixed(3) : '—';
+  }
+  document.getElementById('lmStep').addEventListener('click', step);
+  document.getElementById('lmRun').addEventListener('click', runToConv);
+  document.getElementById('lmReset').addEventListener('click', reset);
+  bitsSlider.addEventListener('input', reset);
+  dimSlider.addEventListener('input', reset);
+  reset();
+})();
+
+/* ================= SECTION 04: QJL geometry diagram ================= */
+(function qjlDiagram(){
+  var svg=document.getElementById('qjlDiagram');
+  var slider=document.getElementById('qjlAngle');
+  function render(){
+    clearSvg(svg);
+    var W=420,H=260, cx=90, cy=200, L=140;
+    var ang = parseFloat(slider.value)*Math.PI/180;
+    var xEnd=[cx+L, cy];
+    var yEnd=[cx+L*Math.cos(ang), cy-L*Math.sin(ang)];
+    // parallel component of y onto x (x is horizontal)
+    var yParLen = L*Math.cos(ang);
+    var parEnd=[cx+yParLen, cy];
+    // axes
+    svg.appendChild(svgEl('line',{x1:cx,y1:cy,x2:xEnd[0],y2:xEnd[1], stroke:SIGNAL(),'stroke-width':3}));
+    svg.appendChild(svgEl('line',{x1:cx,y1:cy,x2:yEnd[0],y2:yEnd[1], stroke:QUANT(),'stroke-width':3}));
+    svg.appendChild(svgEl('line',{x1:yEnd[0],y1:yEnd[1],x2:parEnd[0],y2:parEnd[1], stroke:ERROR_C(),'stroke-width':2,'stroke-dasharray':'4,3'}));
+    svg.appendChild(svgEl('line',{x1:cx,y1:cy,x2:parEnd[0],y2:parEnd[1], stroke:MUTED(),'stroke-width':2}));
+    function label(txt,x,y,fill,fs){
+      var t=svgEl('text',{x:x,y:y,'font-family':'IBM Plex Mono, monospace','font-size':fs||'9', fill:fill||MUTED(), 'font-weight':600});
+      t.textContent=txt; svg.appendChild(t);
+    }
+    label('x', xEnd[0]+6, xEnd[1]+4, SIGNAL());
+    label('y', yEnd[0]+6, yEnd[1]-4, QUANT());
+    label('y⊥ (residual)', (yEnd[0]+parEnd[0])/2-30, (yEnd[1]+parEnd[1])/2-10, ERROR_C());
+    label('y∥', parEnd[0]/2-6, cy+18, MUTED());
+    // s direction indicator (random) - draw several faint random projections
+    for(var i=0;i<5;i++){
+      var a=Math.random()*Math.PI;
+      var sx=cx+Math.cos(a)*160, sy=cy-Math.sin(a)*160;
+      svg.appendChild(svgEl('line',{x1:cx-Math.cos(a)*160,y1:cy+Math.sin(a)*160,x2:sx,y2:sy, stroke:FAINT(),'stroke-width':1, opacity:0.4}));
+    }
+    label('faint lines: random projection directions s', cx-70, 24, FAINT());
+    svg.appendChild(svgEl('circle',{cx:cx,cy:cy,r:3,fill:MUTED()}));
+  }
+  slider.addEventListener('input', render);
+  render();
+})();
+
+/* ================= SECTION 05: PolarQuant tree + angle chart ================= */
+(function polarTree(){
+  var svg=document.getElementById('polarTree');
+  var W=640,H=300;
+  var x=[0.9,-0.3,0.6,0.1,-0.5,0.7,-0.2,0.4];
+  function pol(a,b){ return {r:Math.sqrt(a*a+b*b), th:Math.atan2(b,a)}; }
+  var lvl1=[]; for(var i=0;i<8;i+=2) lvl1.push(pol(x[i],x[i+1]));
+  var r1=lvl1.map(function(p){return p.r;});
+  var lvl2=[]; for(i=0;i<4;i+=2) lvl2.push(pol(r1[i],r1[i+1]));
+  var r2=lvl2.map(function(p){return p.r;});
+  var lvl3=pol(r2[0],r2[1]);
+
+  function node(cx,cy,label,fill,fs){
+    var g=svgEl('g',{});
+    g.appendChild(svgEl('circle',{cx:cx,cy:cy,r:16,fill:fill,opacity:0.15}));
+    g.appendChild(svgEl('circle',{cx:cx,cy:cy,r:16,fill:'none',stroke:fill,'stroke-width':1.5}));
+    var t=svgEl('text',{x:cx,y:cy+4,'text-anchor':'middle','font-family':'IBM Plex Mono, monospace','font-size':fs||'9', fill:MUTED()});
+    t.textContent=label; g.appendChild(t);
+    svg.appendChild(g);
+    return {x:cx,y:cy};
+  }
+  function link(a,b,col){ svg.appendChild(svgEl('line',{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:col||RULE(),'stroke-width':1.3})); }
+
+  var leafY=260, l1Y=190, l2Y=120, l3Y=50;
+  var leaves=[];
+  for(i=0;i<8;i++){ leaves.push(node(76+i*76, leafY, 'x'+(i+1), FAINT(),'10')); }
+  var n1=[];
+  for(i=0;i<4;i++){
+    var cx=(leaves[2*i].x+leaves[2*i+1].x)/2;
+    var nn=node(cx,l1Y,'r,θ',SIGNAL(),'9');
+    link(leaves[2*i],nn); link(leaves[2*i+1],nn);
+    n1.push(nn);
+  }
+  var n2=[];
+  for(i=0;i<2;i++){
+    var cx2=(n1[2*i].x+n1[2*i+1].x)/2;
+    var nn2=node(cx2,l2Y,'r,θ',QUANT(),'9');
+    link(n1[2*i],nn2); link(n1[2*i+1],nn2);
+    n2.push(nn2);
+  }
+  var cxF=(n2[0].x+n2[1].x)/2;
+  var root=node(cxF,l3Y,'r',ERROR_C(),'10');
+  link(n2[0],root); link(n2[1],root);
+
+  var lbl=svgEl('text',{x:8,y:leafY+4,'font-family':'IBM Plex Mono, monospace','font-size':'9',fill:FAINT()});
+  lbl.textContent='level 0'; svg.appendChild(lbl);
+  var lbl1=svgEl('text',{x:8,y:l1Y+4,'font-family':'IBM Plex Mono, monospace','font-size':'9',fill:FAINT()});
+  lbl1.textContent='level 1'; svg.appendChild(lbl1);
+  var lbl2=svgEl('text',{x:8,y:l2Y+4,'font-family':'IBM Plex Mono, monospace','font-size':'9',fill:FAINT()});
+  lbl2.textContent='level 2'; svg.appendChild(lbl2);
+  var lbl3=svgEl('text',{x:8,y:l3Y+4,'font-family':'IBM Plex Mono, monospace','font-size':'9',fill:FAINT()});
+  lbl3.textContent='level 3 = r'; svg.appendChild(lbl3);
+})();
+
+(function polarAngleChart(){
+  var svg=document.getElementById('polarAngleChart');
+  var slider=document.getElementById('polarLevel');
+  var valEl=document.getElementById('polarLevelVal');
+  function density(theta, level){
+    var p=Math.pow(2,level-1)-1;
+    return Math.pow(Math.max(0,Math.sin(2*theta)), p);
+  }
+  function render(){
+    var level=parseInt(slider.value,10);
+    valEl.textContent=level;
+    clearSvg(svg);
+    var W=340,H=200,ML=26,MB=22,MT=10,MR=10;
+    var plotW=W-ML-MR, plotH=H-MT-MB;
+    var n=200, xs=[],fs=[];
+    for(var i=0;i<=n;i++){ var th=(i/n)*(Math.PI/2); xs.push(th); fs.push(density(th,level)); }
+    var maxF=Math.max.apply(null,fs)||1;
+    var pts=xs.map(function(th,i){
+      var px=ML+(th/(Math.PI/2))*plotW, py=MT+plotH-(fs[i]/maxF)*plotH;
+      return px.toFixed(1)+','+py.toFixed(1);
+    }).join(' ');
+    svg.appendChild(svgEl('polygon',{points:ML+','+(MT+plotH)+' '+pts+' '+(ML+plotW)+','+(MT+plotH), fill:QUANT(), opacity:0.18}));
+    svg.appendChild(svgEl('polyline',{points:pts, fill:'none', stroke:QUANT(),'stroke-width':2}));
+    var pxq=ML+0.5*plotW;
+    svg.appendChild(svgEl('line',{x1:pxq,y1:MT,x2:pxq,y2:MT+plotH,stroke:FAINT(),'stroke-width':1,'stroke-dasharray':'3,3'}));
+    svg.appendChild(svgEl('line',{x1:ML,y1:MT+plotH,x2:ML+plotW,y2:MT+plotH,stroke:RULE()}));
+    var t0=svgEl('text',{x:ML-2,y:H-4,'font-family':'IBM Plex Mono, monospace','font-size':'9',fill:FAINT()}); t0.textContent='0'; svg.appendChild(t0);
+    var t1=svgEl('text',{x:pxq-10,y:H-4,'font-family':'IBM Plex Mono, monospace','font-size':'9',fill:FAINT()}); t1.textContent='π/4'; svg.appendChild(t1);
+    var t2=svgEl('text',{x:ML+plotW-14,y:H-4,'font-family':'IBM Plex Mono, monospace','font-size':'9',fill:FAINT()}); t2.textContent='π/2'; svg.appendChild(t2);
+  }
+  slider.addEventListener('input', render);
+  render();
+})();
+
+/* ================= SECTION 06: worked example d=4,b=1, step through ================= */
+(function workedSimple(){
+  var d=4;
+  var centroids=centroidsFor(1,d); // [-0.39894, 0.39894]
+  var H=hadamard(4);
+  var x=[1,0,0,0];
+  var y=matVec(H,x);
+  var idx=y.map(function(v){return nearestCentroidIdx(v,centroids);});
+  var yhat=idx.map(function(i){return centroids[i];});
+  var xhat=matTVec(H,yhat); // H is symmetric-ish orthonormal; H^T = H for this construction since rows orthonormal already scaled
+  var err=sub(x,xhat);
+  var errSq=sqErr(x,xhat);
+
+  var steps=[
+    {title:'Step 0 — input', body:function(){ return barsHtml(x,'x',null,['#1','#2','#3','#4']); }, note:'Unit vector, all mass on coordinate 1. Worst case for naive per-axis quantization.'},
+    {title:'Step 1 — rotate: y = Πx', body:function(){ return barsHtml(y,'y',null,['#1','#2','#3','#4']); }, note:'Using the 4×4 normalized Hadamard matrix as a concrete orthogonal Π. All four coordinates are now equal at 0.5 — energy has spread out evenly.'},
+    {title:'Step 2 — bucketize: nearest centroid per coordinate', body:function(){ return bucketHtml(y,centroids,idx); }, note:'Centroids at ±0.39894 (paper\'s 1-bit formula √(2/π)/√d). Every coordinate (0.5) is closer to +0.39894 than −0.39894 → all 4 indices are "+".'},
+    {title:'Step 3 — dequantize in rotated space: ŷ = c[idx]', body:function(){ return barsHtml(yhat,'ŷ',null,['#1','#2','#3','#4']); }, note:'Each coordinate snaps to +0.39894.'},
+    {title:'Step 4 — rotate back: x̂ = Πᵀŷ', body:function(){ return barsHtml(xhat,'x̂',x,['#1','#2','#3','#4']); }, note:'Reconstructed vector, overlaid (faint) against the true x.'},
+    {title:'Step 5 — error', body:function(){ return barsHtml(err,'x − x̂',null,['#1','#2','#3','#4'], true) + '<p class="viz-caption" style="margin-top:.8rem;">‖x−x̂‖² = '+errSq.toFixed(5)+'</p>'; }, note:'All the error concentrates on coordinate 1 — the only place x had any energy to lose.'}
+  ];
+
+  function barsHtml(vals, label, overlay, labels, isErr){
+    var maxAbs=Math.max.apply(null, vals.map(Math.abs).concat(overlay?overlay.map(Math.abs):[0.001]));
+    var html='<div class="bars">';
+    vals.forEach(function(v,i){
+      var h=Math.max(2, Math.abs(v)/maxAbs*90);
+      var col = isErr ? ERROR_C() : SIGNAL();
+      html+='<div class="bar" style="height:'+h+'px; background:'+col+';align-self:'+(v>=0?'flex-end':'flex-start')+';"><span class="lbl">'+v.toFixed(3)+'</span></div>';
+    });
+    html+='</div><div class="legend"><span>'+label+' = ['+vals.map(function(v){return v.toFixed(3);}).join(', ')+']</span></div>';
+    return html;
+  }
+  function bucketHtml(vals,cents,idxs){
+    var html='<div class="bars">';
+    vals.forEach(function(v,i){
+      var h=60;
+      var col = idxs[i]===0 ? FAINT() : QUANT();
+      html+='<div class="bar" style="height:'+h+'px; background:'+col+';"><span class="lbl">'+v.toFixed(2)+'</span></div>';
+    });
+    html+='</div><div class="legend"><span><span class="sw" style="background:'+QUANT()+'"></span>bucket → c = +'+cents[1].toFixed(5)+'</span><span><span class="sw" style="background:'+FAINT()+'"></span>bucket → c = '+cents[0].toFixed(5)+'</span></div>';
+    return html;
+  }
+
+  var cur=0;
+  var body=document.getElementById('s1Body');
+  var dotsEl=document.getElementById('s1Dots');
+  for(var i=0;i<steps.length;i++){ var dd=document.createElement('span'); dd.className='dot'; dotsEl.appendChild(dd); }
+  function render(){
+    var s=steps[cur];
+    body.innerHTML='<p class="eyebrow" style="margin-bottom:.4em;">'+s.title+'</p>'+s.body()+'<p style="margin-top:1rem; font-size:.9rem; color:var(--ink-muted);">'+s.note+'</p>';
+    Array.prototype.forEach.call(dotsEl.children, function(el,i){ el.classList.toggle('on', i===cur); });
+    document.getElementById('s1Prev').disabled = cur===0;
+    document.getElementById('s1Next').disabled = cur===steps.length-1;
+  }
+  document.getElementById('s1Prev').addEventListener('click', function(){ if(cur>0){cur--; render();} });
+  document.getElementById('s1Next').addEventListener('click', function(){ if(cur<steps.length-1){cur++; render();} });
+  render();
+})();
+
+/* ================= SECTION 07: moderate worked example d=8,b=2, interactive ================= */
+(function workedModerate(){
+  var d=8;
+  var centroids=centroidsFor(2,d);
+  var H=hadamard(8);
+  var x=[0.5,0.5,0.5,0.5,0.2,0.2,0.2,0.2];
+  var sliders=[];
+  var inputsEl=document.getElementById('modInputs');
+  x.forEach(function(v,i){
+    var row=document.createElement('div');
+    row.style.display='flex'; row.style.alignItems='center'; row.style.gap='.6em'; row.style.marginBottom='.3em';
+    var lbl=document.createElement('span'); lbl.className='mono'; lbl.style.fontSize='.72rem'; lbl.style.color='var(--ink-faint)'; lbl.style.width='2.2em';
+    lbl.textContent='x'+(i+1);
+    var inp=document.createElement('input'); inp.type='range'; inp.min='-1'; inp.max='1'; inp.step='0.05'; inp.value=v;
+    inp.style.flex='1';
+    var val=document.createElement('span'); val.className='mono'; val.style.fontSize='.72rem'; val.style.width='3em'; val.textContent=v.toFixed(2);
+    inp.addEventListener('input', function(){ val.textContent=parseFloat(inp.value).toFixed(2); recompute(); });
+    row.appendChild(lbl); row.appendChild(inp); row.appendChild(val);
+    inputsEl.appendChild(row);
+    sliders.push(inp);
+  });
+
+  function getX(){ return sliders.map(function(s){return parseFloat(s.value);}); }
+  function setX(vals){ vals.forEach(function(v,i){ sliders[i].value=v; sliders[i].nextSibling.textContent=v.toFixed(2); }); recompute(); }
+
+  var colors=null;
+  function barsInto(container, vals, colorFn){
+    container.innerHTML='';
+    var maxAbs=Math.max.apply(null, vals.map(Math.abs).concat([0.05]));
+    vals.forEach(function(v,i){
+      var h=Math.max(2, Math.abs(v)/maxAbs*90);
+      var el=document.createElement('div');
+      el.className='bar';
+      el.style.height=h+'px';
+      el.style.background=colorFn(v,i);
+      el.style.alignSelf = v>=0 ? 'flex-end':'flex-start';
+      var lbl=document.createElement('span'); lbl.className='lbl'; lbl.textContent=v.toFixed(2);
+      el.appendChild(lbl);
+      container.appendChild(el);
+    });
+  }
+
+  function recompute(){
+    var raw=getX();
+    var n=norm2(raw)||1;
+    var xu=raw.map(function(v){return v/n;});
+    var y=matVec(H,xu);
+    var idx=y.map(function(v){return nearestCentroidIdx(v,centroids);});
+    var yhat=idx.map(function(i){return centroids[i];});
+    var xhat=matTVec(H,yhat);
+    var err=sqErr(xu,xhat);
+    document.getElementById('modErr').textContent=err.toFixed(4);
+    document.getElementById('modNorm').textContent=n.toFixed(3);
+    var dc = Math.abs(y[0]) > Math.max.apply(null, y.slice(1).map(Math.abs));
+    document.getElementById('modNote').textContent = dc ? 'The DC (all-ones) coefficient y₁ dominates — this input has a shared mean the fixed Hadamard pattern routes into one axis.' : 'Energy is fairly spread across rotated coordinates.';
+    barsInto(document.getElementById('modRotated'), y, function(v,i){ return idx[i]>=2 ? QUANT() : SIGNAL(); });
+    barsInto(document.getElementById('modRecon'), xhat, function(v,i){ return ERROR_C(); });
+  }
+  document.getElementById('modPreset1').addEventListener('click', function(){ setX([0.5,0.5,0.5,0.5,0.2,0.2,0.2,0.2]); });
+  document.getElementById('modPreset2').addEventListener('click', function(){ setX([1,0,0,0,0,0,0,0]); });
+  document.getElementById('modRandom').addEventListener('click', function(){ setX(x.map(function(){return (Math.random()*2-1);})); });
+  recompute();
+})();
+
+/* ================= SECTION 08: compression calculator ================= */
+(function compressCalc(){
+  var dimS=document.getElementById('crDim'), bitsS=document.getElementById('crBits');
+  var dimV=document.getElementById('crDimVal'), bitsV=document.getElementById('crBitsVal');
+  var packedEl=document.getElementById('crPacked'), fp16El=document.getElementById('crFp16'), ratioEl=document.getElementById('crRatio');
+  function render(){
+    var d=parseInt(dimS.value,10), b=parseFloat(bitsS.value);
+    dimV.textContent=d; bitsV.textContent=b;
+    var packed=Math.ceil(b*d/8)+2; // +2 bytes fp16 norm
+    var fp16=d*2;
+    packedEl.textContent=packed+' B';
+    fp16El.textContent=fp16+' B';
+    ratioEl.textContent=(fp16/packed).toFixed(2)+'×';
+  }
+  dimS.addEventListener('input', render);
+  bitsS.addEventListener('input', render);
+  render();
+})();
+
+/* re-render theme-dependent svgs on theme toggle */
+document.getElementById('themeToggle').addEventListener('click', function(){
+  setTimeout(function(){
+    document.getElementById('rerollBtn').click();
+    document.getElementById('lmReset').click();
+    document.getElementById('qjlAngle').dispatchEvent(new Event('input'));
+    document.getElementById('polarLevel').dispatchEvent(new Event('input'));
+  }, 30);
+});
+
+})();
+</script>
