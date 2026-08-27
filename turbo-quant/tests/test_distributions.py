@@ -1,5 +1,6 @@
 import math
 
+import numpy as np
 import torch
 from scipy import integrate, stats
 
@@ -62,8 +63,11 @@ def test_rotation_coordinate_matches_beta_density_via_ks_test():
     density = beta_coordinate_density(d)
 
     def cdf(x):
-        val, _ = integrate.quad(density.pdf, -1.0, x)
-        return val
+        if np.ndim(x) == 0:  # scalar
+            val, _ = integrate.quad(density.pdf, -1.0, x)
+            return val
+        else:  # array-like
+            return np.array([integrate.quad(density.pdf, -1.0, xi)[0] for xi in x])
 
     ks_stat, p_value = stats.kstest(samples, cdf)
     assert p_value > 0.01
