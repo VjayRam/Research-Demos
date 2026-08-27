@@ -52,6 +52,7 @@ class TurboQuantProd:
         self.bits = bits
         self.mse = TurboQuantMSE(d, bits - 1, seed=seed)
         self.qjl_matrix = generate_qjl_matrix(d, seed=seed + 1)
+        self._correction_scale = math.sqrt(math.pi / 2) / self.d
 
     def quantize(self, x: torch.Tensor) -> dict:
         indices, norm = self.mse.quantize(x)
@@ -70,10 +71,9 @@ class TurboQuantProd:
         }
 
     def _qjl_correction(self, compressed: dict) -> torch.Tensor:
-        correction_scale = math.sqrt(math.pi / 2) / self.d
         return (
             compressed["residual_norm"].unsqueeze(-1)
-            * correction_scale
+            * self._correction_scale
             * (compressed["qjl_signs"] @ self.qjl_matrix)
         )
 
@@ -88,7 +88,6 @@ class TurboQuantProd:
 
         y_projected = y @ self.qjl_matrix.T
         qjl_ip = (y_projected * compressed["qjl_signs"]).sum(dim=-1)
-        correction_scale = math.sqrt(math.pi / 2) / self.d
-        term2 = compressed["residual_norm"] * correction_scale * qjl_ip
+        term2 = compressed["residual_norm"] * self._correction_scale * qjl_ip
 
         return term1 + term2

@@ -19,7 +19,9 @@ This implementation incorporates community-informed improvements (V3) drawn from
 > [D1](#d1-rotation-matrix-hadamard-vs-haar-distributed-orthogonal) and
 > [D5](#d5-coordinate-distribution-gaussian-approximation-vs-exact-beta) below
 > no longer apply to the current codebase — they describe the prior
-> implementation for historical/research reference. See
+> implementation for historical/research reference, **except the
+> [File Structure](#file-structure) section below, which has been updated to
+> reflect the current package layout** and is accurate as written. See
 > [Installation](#installation) and [Usage](#usage) at the bottom of this file
 > for the current package's API.
 
@@ -930,18 +932,28 @@ fully-tested replacement.
    -> bit-pack) and decompress (unpack -> lookup -> matmul -> rescale) paths into
    single Triton kernels. The SGLang PR (#21419) has working reference code.
    Expected: 50-100x throughput improvement, generation speed matching FP16.
+   (Note: this describes the old Hadamard/FWHT-based pipeline. The current
+   `turboquant/` package uses QR-based Haar rotation instead of FWHT, so a
+   fused kernel for it would need its own O(d log d) rotation approach — a
+   dense QR matmul does not fuse as cheaply as FWHT does.)
 
 2. **vLLM integration**: Add `turboquant` as a `--kv-cache-dtype` option.
    Store compressed uint8 + fp16 norms directly in vLLM's paged cache blocks.
    Decompress inside the attention kernel. This delivers real runtime memory
-   savings.
+   savings. (Still applicable to the current package — the storage layout and
+   integration point are algorithm-agnostic.)
 
 3. **SGLang integration**: Same pattern via their `RadixAttention` cache manager.
-   An open PR exists at `sgl-project/sglang#21419`.
+   An open PR exists at `sgl-project/sglang#21419`. (The PR's reference kernel
+   is FWHT-based; wiring in the current `turboquant/` package would mean
+   swapping that kernel's rotation step for the QR-based one, not a drop-in
+   reuse.)
 
 4. **Mixed-precision**: Implement the paper's 2.5-bit and 3.5-bit configurations
    by splitting channels into outlier/non-outlier groups with two independent
-   TurboQuant instances.
+   TurboQuant instances. (Still applicable — this is orthogonal to the
+   rotation/quantization mechanism and works the same way with the current
+   `TurboQuantMSE`/`TurboQuantProd` classes.)
 
 ---
 
