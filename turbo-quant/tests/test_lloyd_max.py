@@ -18,11 +18,19 @@ def test_centroids_are_sorted():
 
 
 def test_b1_centroid_matches_exact_half_normal_formula():
-    # For b=1, the optimal centroid is exactly E[X | X > 0] = sqrt(2/pi)/sqrt(d).
+    # For b=1, the optimal centroid is exactly E[X | X > 0] under the Beta
+    # density, computed by direct integration:
+    # E[X|X>0] = 2*Gamma(d/2) / (sqrt(pi)*(d-1)*Gamma((d-1)/2))
+    # (Note: this is NOT the same as the asymptotic sqrt(2/pi)/sqrt(d)
+    # formula, which only converges to this as d -> infinity; at d=128
+    # they differ by ~0.2%.)
     d = 128
     density = beta_coordinate_density(d)
     centroids, _ = solve_lloyd_max(density.pdf, density.support, bits=1)
-    expected = math.sqrt(2 / math.pi) / math.sqrt(d)
+
+    log_expected = math.log(2) + math.lgamma(d / 2) - 0.5 * math.log(math.pi) - math.log(d - 1) - math.lgamma((d - 1) / 2)
+    expected = math.exp(log_expected)
+
     assert math.isclose(centroids[1].item(), expected, rel_tol=1e-3)
     assert math.isclose(centroids[0].item(), -expected, rel_tol=1e-3)
 
