@@ -7,6 +7,22 @@ Quantization with Near-optimal Distortion Rate"* by Zandieh et al.
 This implementation incorporates community-informed improvements (V3) drawn from
 6+ independent implementations across SGLang, llama.cpp, and research forks.
 
+> **Note on this document's scope.** Everything below through
+> [Path to Production](#path-to-production) documents the original exploratory
+> V3 implementation (Hadamard rotation, Gaussian-approximated Lloyd-Max,
+> `compressors.py`) that lived at the root of this directory. That flat-file
+> implementation has been superseded by the installable `turboquant/` package,
+> which implements the paper's Algorithm 1/2 and PolarQuant with **no**
+> approximation shortcuts: a true Haar-random rotation (QR decomposition, not
+> Hadamard) and Lloyd-Max solved against the exact Beta / sin-power densities
+> (not the Gaussian approximation). In other words, deviations
+> [D1](#d1-rotation-matrix-hadamard-vs-haar-distributed-orthogonal) and
+> [D5](#d5-coordinate-distribution-gaussian-approximation-vs-exact-beta) below
+> no longer apply to the current codebase — they describe the prior
+> implementation for historical/research reference. See
+> [Installation](#installation) and [Usage](#usage) at the bottom of this file
+> for the current package's API.
+
 ---
 
 ## Table of Contents
@@ -21,8 +37,10 @@ This implementation incorporates community-informed improvements (V3) drawn from
 8. [Advantages](#advantages)
 9. [Limitations](#limitations)
 10. [File Structure](#file-structure)
-11. [Usage](#usage)
-12. [Path to Production](#path-to-production)
+11. [Path to Production](#path-to-production)
+12. [Installation](#installation)
+13. [Usage](#usage)
+14. [Testing against real models](#testing-against-real-models)
 
 ---
 
@@ -885,62 +903,24 @@ responses to the FP16 baseline.
 
 ```
 turbo-quant/
-    lloyd_max.py       Lloyd-Max optimal scalar quantizer solver
-    turboquant.py      Core: FWHT, Hadamard rotation, TurboQuantMSE, TurboQuantProd
-    compressors.py     Production: MSECompressor (bit-packed), TurboQuantV3, profiles
-    evaluate.py        Evaluation: memory, fidelity, throughput, generation speed
-    test_algorithm.py  Synthetic algorithm correctness tests (no model needed)
-    README.md          This file
+    turboquant/                 Installable package (current implementation)
+        rotation.py              Haar-random rotation via QR decomposition
+        distributions.py         Exact Beta / sin-power coordinate densities
+        lloyd_max.py              Lloyd-Max solver against the exact densities
+        codebook.py               Codebook construction and caching
+        qjl.py                    QJL 1-bit correction (Algorithm 2)
+        cartesian.py              TurboQuantMSE / TurboQuantProd (Algorithm 1/2)
+        polar.py                  PolarQuant (recursive polar-coordinate quantizer)
+        __init__.py               Public API
+    tests/                       41 passing tests for the package above
+    turboquant-primer.html       Interactive walkthrough of the math
+    README.md                   This file
 ```
 
----
-
-## Usage
-
-### Run algorithm tests (no GPU or model needed)
-
-```bash
-python test_algorithm.py
-```
-
-### Run full evaluation on a model
-
-```bash
-python evaluate.py --model Qwen/Qwen2.5-3B-Instruct --context 2048
-
-# With specific profiles
-python evaluate.py --profiles moderate extreme --context 4096
-
-# Skip generation tests (faster, compression-only)
-python evaluate.py --skip-generation
-
-# Use fp16 model instead of 4-bit
-python evaluate.py --no-4bit
-```
-
-### Use in your own code
-
-```python
-from compressors import TurboQuantV3, PROFILES
-
-profile = PROFILES["moderate"]
-compressor = TurboQuantV3(
-    head_dim=128,
-    key_bits=profile.key_bits,
-    value_bits=profile.value_bits,
-    residual_window=profile.residual_window,
-    layer_idx=5,
-    n_layers=36,
-    protected_layers=profile.protected_layers,
-    device="cuda",
-)
-
-# Compress
-compressed_k, compressed_v = compressor.compress_kv(keys, values)
-
-# Decompress
-keys_recon, values_recon = compressor.decompress_kv(compressed_k, compressed_v)
-```
+The `turboquant.py`, `compressors.py`, `lloyd_max.py` (flat-file version),
+`test_algorithm.py`, and `evaluate.py` files described throughout this README
+have been removed — the `turboquant/` package above is their exact-math,
+fully-tested replacement.
 
 ---
 
@@ -962,3 +942,43 @@ keys_recon, values_recon = compressor.decompress_kv(compressed_k, compressed_v)
 4. **Mixed-precision**: Implement the paper's 2.5-bit and 3.5-bit configurations
    by splitting channels into outlier/non-outlier groups with two independent
    TurboQuant instances.
+
+---
+
+## Installation
+
+    cd turbo-quant
+    pip install -e ".[test]"
+
+## Usage
+
+    from turboquant import TurboQuantMSE, TurboQuantProd, PolarQuant
+
+    # Algorithm 1: MSE-optimal quantizer
+    q = TurboQuantMSE(d=128, bits=4, seed=0)
+    indices, norm = q.quantize(x)          # x: (..., 128)
+    x_hat = q.dequantize(indices, norm)
+
+    # Algorithm 2: unbiased inner-product quantizer
+    q = TurboQuantProd(d=128, bits=4, seed=0)
+    compressed = q.quantize(x)
+    x_hat = q.dequantize(compressed)
+    estimate = q.inner_product(y, compressed)   # unbiased estimate of <x, y>
+
+    # PolarQuant: recursive polar-coordinate alternative (d must be a power of 2)
+    q = PolarQuant(d=128, bits=4, seed=0)
+    compressed = q.quantize(x)
+    x_hat = q.dequantize(compressed)
+
+Every numerical choice in `turboquant/` is exact per the papers: true
+Haar-random rotation via QR decomposition (no Hadamard-transform shortcut),
+Lloyd-Max solved against the exact Beta / sin-power densities (no Gaussian
+approximation). See `turboquant-primer.html` for a full interactive
+walkthrough of the math, and `docs/superpowers/specs/2026-08-27-turboquant-redesign-design.md`
+for the design rationale.
+
+## Testing against real models
+
+    pip install -e ".[examples]"
+    python examples/run_benchmark.py --smoke-test
+    python examples/run_benchmark.py --model Qwen/Qwen2.5-0.5B --algorithm mse prod --bits 1 2 3 4
