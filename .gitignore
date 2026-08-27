@@ -11,3 +11,7 @@ wheels/
 
 # superpowers
 .superpowers/
+
+# Local editor / linter config
+.hintrc
+.vscode/

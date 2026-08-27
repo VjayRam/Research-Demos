@@ -423,7 +423,7 @@ sup, sub{line-height:0;}
         <p style="margin-bottom:4px; font-size:.92rem;">Drag the logits <span class="mono">w<sub>i</sub></span>. Watch the softmax bars fight for share. Mark a feature "selected" to see it snap to weight 1 and drop out of the competition — exactly like the piecewise formula above.</p>
         <div id="softmax-sliders"></div>
         <div class="slider-row" style="grid-template-columns:108px 1fr 44px; margin-top:18px; border-top:1px dashed var(--line-strong); padding-top:16px;">
-          <label>temperature τ</label>
+          <label for="temp-slider">temperature τ</label>
           <input type="range" id="temp-slider" min="0.15" max="3" step="0.05" value="1">
           <output id="temp-out">1.00</output>
         </div>
