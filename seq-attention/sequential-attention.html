@@ -1,0 +1,901 @@
+<title>Sequential Attention</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+/* ============ tokens ============ */
+:root{
+  --ink:#17242A;
+  --ink-soft:#3E4E52;
+  --paper:#EFF1EC;
+  --paper-raised:#E4E8E0;
+  --paper-raised-2:#DAE0D6;
+  --accent:#C97418;
+  --accent-strong:#A85E0E;
+  --accent-ink:#5C3608;
+  --muted:#71857E;
+  --muted-2:#9AA9A2;
+  --line:rgba(23,36,42,0.14);
+  --line-strong:rgba(23,36,42,0.28);
+  --good:#3F7A57;
+  --bad:#B14A3E;
+  --dark-panel-bg:#101A1D;
+  --dark-panel-ink:#E7ECE7;
+  --dark-panel-line:rgba(231,236,231,0.16);
+  --shadow: 0 1px 2px rgba(23,36,42,0.06), 0 6px 20px rgba(23,36,42,0.06);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ink:#E7ECE7;
+    --ink-soft:#B7C4BF;
+    --paper:#0F1719;
+    --paper-raised:#16211F;
+    --paper-raised-2:#1D2926;
+    --accent:#F0A63C;
+    --accent-strong:#F7BE6C;
+    --accent-ink:#2C1A05;
+    --muted:#7E9089;
+    --muted-2:#54615D;
+    --line:rgba(231,236,231,0.14);
+    --line-strong:rgba(231,236,231,0.26);
+    --good:#6FBB8E;
+    --bad:#E08476;
+    --dark-panel-bg:#0A1213;
+    --dark-panel-ink:#E7ECE7;
+    --dark-panel-line:rgba(231,236,231,0.16);
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.35);
+  }
+}
+:root[data-theme="dark"]{
+  --ink:#E7ECE7;
+  --ink-soft:#B7C4BF;
+  --paper:#0F1719;
+  --paper-raised:#16211F;
+  --paper-raised-2:#1D2926;
+  --accent:#F0A63C;
+  --accent-strong:#F7BE6C;
+  --accent-ink:#2C1A05;
+  --muted:#7E9089;
+  --muted-2:#54615D;
+  --line:rgba(231,236,231,0.14);
+  --line-strong:rgba(231,236,231,0.26);
+  --good:#6FBB8E;
+  --bad:#E08476;
+  --dark-panel-bg:#0A1213;
+  --dark-panel-ink:#E7ECE7;
+  --dark-panel-line:rgba(231,236,231,0.16);
+  --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.35);
+}
+
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+@media (prefers-reduced-motion: reduce){
+  html{scroll-behavior:auto;}
+  *{animation-duration:0.001ms !important; animation-iteration-count:1 !important; transition-duration:0.001ms !important;}
+}
+body{
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:"Source Serif 4", Georgia, "Times New Roman", serif;
+  font-size:17px;
+  line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+}
+::selection{background:var(--accent); color:var(--accent-ink);}
+
+h1,h2,h3{
+  font-family:"Fraunces", Georgia, serif;
+  text-wrap:balance;
+  font-weight:600;
+  color:var(--ink);
+  margin:0 0 0.4em 0;
+}
+p{margin:0 0 1.1em 0; color:var(--ink-soft);}
+p strong, li strong{color:var(--ink); font-weight:600;}
+a{color:var(--accent-strong);}
+code, .mono{font-family:"IBM Plex Mono", ui-monospace, monospace;}
+
+/* ============ layout shell ============ */
+.shell{
+  display:grid;
+  grid-template-columns: 232px minmax(0,720px) 1fr;
+  gap:0 40px;
+  max-width:1240px;
+  margin:0 auto;
+  padding:0 28px;
+}
+@media (max-width: 980px){
+  .shell{grid-template-columns: 1fr; padding:0 20px;}
+}
+
+nav.toc{
+  position:sticky;
+  top:0;
+  align-self:start;
+  padding-top:64px;
+  height:100vh;
+  overflow-y:auto;
+  font-family:"IBM Plex Mono", monospace;
+  font-size:12.5px;
+}
+@media (max-width: 980px){
+  nav.toc{position:static; height:auto; padding-top:24px; border-bottom:1px solid var(--line); margin-bottom:8px; overflow:visible;}
+}
+nav.toc .eyebrow{
+  color:var(--muted); letter-spacing:0.08em; text-transform:uppercase; font-size:11px; margin-bottom:14px;
+}
+nav.toc ol{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:2px;}
+nav.toc li a{
+  display:flex; gap:10px; align-items:baseline;
+  text-decoration:none; color:var(--muted); padding:6px 8px; border-radius:6px;
+  border-left:2px solid transparent;
+  transition:color .15s ease, background .15s ease, border-color .15s ease;
+}
+nav.toc li a:hover{color:var(--ink); background:var(--paper-raised);}
+nav.toc li a.active{color:var(--accent-strong); border-left-color:var(--accent); background:var(--paper-raised);}
+nav.toc li a .n{color:var(--muted-2); font-variant-numeric:tabular-nums; min-width:1.4em;}
+nav.toc li a.active .n{color:var(--accent);}
+
+main{min-width:0; padding-bottom:120px;}
+aside.rail{padding-top:64px;}
+@media (max-width: 980px){aside.rail{display:none;}}
+
+/* ============ hero ============ */
+.hero{padding:88px 0 40px 0;}
+.hero .kicker{
+  font-family:"IBM Plex Mono", monospace; font-size:12px; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--accent-strong); margin-bottom:18px; display:flex; align-items:center; gap:10px;
+}
+.hero .kicker::before{content:""; width:22px; height:1px; background:var(--accent);}
+.hero h1{font-size:clamp(2.3rem, 5vw, 3.4rem); line-height:1.05; letter-spacing:-0.01em;}
+.hero h1 em{font-style:italic; color:var(--accent-strong);}
+.hero .sub{font-size:1.15rem; color:var(--ink-soft); max-width:56ch; margin-top:14px;}
+.hero .meta{
+  margin-top:26px; display:flex; flex-wrap:wrap; gap:8px 22px; font-family:"IBM Plex Mono",monospace; font-size:12.5px; color:var(--muted);
+}
+.hero .meta b{color:var(--ink-soft); font-weight:500;}
+
+.hero-strip{
+  margin-top:38px; display:flex; align-items:flex-end; gap:6px; height:64px; padding:14px 16px;
+  background:var(--paper-raised); border:1px solid var(--line); border-radius:10px;
+}
+.hero-strip .sq{
+  flex:1; height:14px; border-radius:3px; background:var(--muted-2); opacity:.5;
+  transition:height .5s cubic-bezier(.2,.8,.2,1), background .5s ease, opacity .5s ease;
+}
+.hero-strip .sq.on{height:38px; background:var(--accent); opacity:1;}
+.hero-controls{margin-top:10px; display:flex; align-items:center; gap:12px;}
+.hero-controls .caption{font-size:12.5px; color:var(--muted); font-family:"IBM Plex Mono",monospace;}
+
+/* ============ generic section ============ */
+section{padding:56px 0; border-top:1px solid var(--line);}
+section:first-of-type{border-top:none;}
+.section-head{margin-bottom:22px;}
+.section-head .num{
+  font-family:"IBM Plex Mono",monospace; font-size:12px; color:var(--accent-strong); letter-spacing:.1em;
+}
+.section-head h2{font-size:1.7rem; margin-top:6px;}
+.section-head .dek{color:var(--muted); font-size:.98rem; max-width:60ch; margin-top:6px;}
+
+.lede{font-size:1.06rem;}
+.lede::first-letter{
+  font-family:"Fraunces",serif; font-weight:600; font-size:3.1em; float:left; line-height:0.82;
+  margin:0.03em 0.08em 0 0; color:var(--accent-strong);
+}
+
+/* ============ panels / cards ============ */
+.panel{
+  background:var(--paper-raised); border:1px solid var(--line); border-radius:14px;
+  padding:22px 24px; margin:22px 0; box-shadow:var(--shadow);
+}
+.panel h3{font-size:1.05rem; margin-bottom:8px;}
+.panel.tight{padding:16px 18px;}
+
+.eqbox{
+  background:var(--dark-panel-bg); color:var(--dark-panel-ink); border:1px solid var(--dark-panel-line);
+  border-radius:12px; padding:20px 22px; margin:20px 0; overflow-x:auto;
+  font-family:"IBM Plex Mono",monospace; font-size:14.5px; line-height:1.9;
+}
+.eqbox .lbl{color:#F0A63C; font-size:11px; letter-spacing:.1em; text-transform:uppercase; margin-bottom:10px; opacity:.85;}
+.eqbox .row{white-space:nowrap;}
+.frac{display:inline-flex; flex-direction:column; vertical-align:middle; text-align:center; margin:0 3px; line-height:1.2;}
+.frac .num{border-bottom:1px solid currentColor; padding:0 2px 1px 2px;}
+.frac .den{padding:1px 2px 0 2px;}
+.piecewise{display:inline-flex; flex-direction:column; vertical-align:middle; margin-left:4px;}
+.piecewise .brace{font-size:2.6em; line-height:0; margin-right:6px;}
+
+.theorem{
+  border-left:3px solid var(--accent); background:var(--paper-raised); border-radius:0 12px 12px 0;
+  padding:16px 20px; margin:20px 0;
+}
+.theorem .tag{font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent-strong);}
+.theorem p{margin-top:8px; margin-bottom:0; color:var(--ink);}
+
+.callout{
+  display:flex; gap:14px; background:var(--paper-raised-2); border:1px solid var(--line); border-radius:12px;
+  padding:16px 18px; margin:20px 0; font-size:.96rem;
+}
+.callout .ico{font-size:1.2rem; line-height:1.4;}
+.callout p{margin:0; color:var(--ink-soft);}
+
+/* ============ algorithm pseudocode ============ */
+.algo{
+  background:var(--dark-panel-bg); color:var(--dark-panel-ink); border-radius:12px; padding:22px 24px;
+  font-family:"IBM Plex Mono",monospace; font-size:13.6px; line-height:1.95; margin:20px 0; overflow-x:auto;
+}
+.algo .title{color:#F0A63C; font-weight:600; margin-bottom:10px;}
+.algo ol{counter-reset:step; list-style:none; margin:0; padding:0;}
+.algo ol > li{counter-increment:step; padding-left:2.1em; position:relative; margin-bottom:4px;}
+.algo ol > li::before{content:counter(step) ":"; position:absolute; left:0; color:#7E9089;}
+.algo .indent{padding-left:1.4em;}
+.algo .kw{color:#F0A63C;}
+.algo .cm{color:#7E9089; font-style:italic;}
+
+/* ============ interactive widgets ============ */
+.widget{
+  border:1px solid var(--line); background:var(--paper-raised); border-radius:14px; padding:22px 24px 24px;
+  margin:24px 0; box-shadow:var(--shadow);
+}
+.widget-head{display:flex; justify-content:space-between; align-items:baseline; gap:12px; margin-bottom:16px; flex-wrap:wrap;}
+.widget-head h4{font-family:"Fraunces",serif; font-size:1.08rem; font-weight:600; margin:0;}
+.widget-head .tag{
+  font-family:"IBM Plex Mono",monospace; font-size:10.5px; letter-spacing:.08em; text-transform:uppercase;
+  color:var(--muted); background:var(--paper); border:1px solid var(--line); padding:3px 8px; border-radius:20px;
+}
+
+.slider-row{display:grid; grid-template-columns: 108px 1fr 44px; align-items:center; gap:12px; margin:10px 0;}
+.slider-row label{font-family:"IBM Plex Mono",monospace; font-size:12.5px; color:var(--ink-soft); display:flex; align-items:center; gap:6px;}
+.slider-row .dot{width:9px; height:9px; border-radius:50%; flex:none;}
+.slider-row input[type=range]{
+  -webkit-appearance:none; width:100%; height:4px; border-radius:3px; background:var(--line-strong); outline:none;
+}
+.slider-row input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none; width:16px; height:16px; border-radius:50%; background:var(--accent); cursor:pointer;
+  border:2px solid var(--paper); box-shadow:0 0 0 1px var(--line-strong);
+}
+.slider-row input[type=range]::-moz-range-thumb{
+  width:14px; height:14px; border-radius:50%; background:var(--accent); cursor:pointer; border:2px solid var(--paper);
+}
+.slider-row output{font-family:"IBM Plex Mono",monospace; font-size:12.5px; text-align:right; font-variant-numeric:tabular-nums;}
+.slider-row .check{width:auto; accent-color:var(--accent);}
+
+.barlist{display:flex; flex-direction:column; gap:8px; margin-top:14px;}
+.bar-row{display:grid; grid-template-columns:108px 1fr 52px; align-items:center; gap:12px;}
+.bar-row .name{font-family:"IBM Plex Mono",monospace; font-size:12px; color:var(--ink-soft); display:flex; gap:6px; align-items:center;}
+.bar-row .name .dot{width:8px;height:8px;border-radius:50%;flex:none;}
+.bar-track{position:relative; height:16px; background:var(--paper); border:1px solid var(--line); border-radius:5px; overflow:hidden;}
+.bar-fill{height:100%; border-radius:4px 0 0 4px; background:var(--muted-2); transition:width .45s cubic-bezier(.2,.8,.2,1), background .3s ease;}
+.bar-fill.selected{background:var(--accent);}
+.bar-row .val{font-family:"IBM Plex Mono",monospace; font-size:11.5px; text-align:right; color:var(--muted); font-variant-numeric:tabular-nums;}
+
+.btn{
+  font-family:"IBM Plex Mono",monospace; font-size:12.5px; letter-spacing:.03em; border:1px solid var(--line-strong);
+  background:var(--paper); color:var(--ink); padding:9px 16px; border-radius:8px; cursor:pointer;
+  transition:background .15s ease, color .15s ease, border-color .15s ease, transform .08s ease;
+}
+.btn:hover{background:var(--paper-raised-2);}
+.btn:active{transform:scale(.97);}
+.btn.primary{background:var(--accent); color:var(--accent-ink); border-color:var(--accent-strong);}
+.btn.primary:hover{background:var(--accent-strong);}
+.btn:disabled{opacity:.4; cursor:not-allowed;}
+.btn:focus-visible, a:focus-visible, input:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+
+.controls-row{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:16px;}
+
+.omp-grid{display:grid; grid-template-columns: 1.1fr 1fr; gap:26px;}
+@media (max-width: 760px){.omp-grid{grid-template-columns:1fr;}}
+.selected-strip{display:flex; flex-wrap:wrap; gap:8px; min-height:34px; align-items:center;}
+.chip{
+  font-family:"IBM Plex Mono",monospace; font-size:12px; padding:5px 10px; border-radius:20px;
+  background:var(--accent); color:var(--accent-ink); display:flex; align-items:center; gap:6px;
+  animation:pop .35s cubic-bezier(.2,.8,.2,1);
+}
+@keyframes pop{from{transform:scale(.6); opacity:0;} to{transform:scale(1); opacity:1;}}
+.chip .r{opacity:.7; font-size:10.5px;}
+.round-log{margin-top:14px; border-top:1px dashed var(--line-strong); padding-top:10px;}
+.round-log .entry{font-family:"IBM Plex Mono",monospace; font-size:12px; color:var(--ink-soft); padding:3px 0;}
+.round-log .entry b{color:var(--accent-strong);}
+
+.timeline{display:flex; border:1px solid var(--line); border-radius:10px; overflow:hidden; margin-top:16px;}
+.timeline .phase{
+  flex:1; padding:14px 12px; border-right:1px solid var(--line); text-align:center; position:relative; cursor:default;
+  background:var(--paper); transition:background .2s ease;
+}
+.timeline .phase:last-child{border-right:none;}
+.timeline .phase:hover{background:var(--paper-raised-2);}
+.timeline .phase .k{font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--muted);}
+.timeline .phase .f{font-family:"Fraunces",serif; font-weight:600; margin-top:4px; color:var(--accent-strong);}
+
+table.results{width:100%; border-collapse:collapse; margin:18px 0; font-size:.92rem;}
+table.results th, table.results td{padding:9px 12px; border-bottom:1px solid var(--line); text-align:right;}
+table.results th:first-child, table.results td:first-child{text-align:left;}
+table.results thead th{
+  font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:.05em; text-transform:uppercase; color:var(--muted);
+  border-bottom:1px solid var(--line-strong);
+}
+table.results td{font-variant-numeric:tabular-nums; color:var(--ink-soft);}
+table.results td.win{color:var(--good); font-weight:600;}
+table.results tbody tr:hover{background:var(--paper-raised);}
+
+.chain{display:flex; align-items:center; gap:10px; margin:22px 0; flex-wrap:wrap;}
+.chain .node{
+  flex:1; min-width:170px; border:1px solid var(--line); background:var(--paper); border-radius:12px; padding:14px 16px;
+  cursor:pointer; transition:border-color .2s ease, box-shadow .2s ease;
+}
+.chain .node:hover, .chain .node.open{border-color:var(--accent); box-shadow:0 0 0 1px var(--accent);}
+.chain .node .t{font-family:"Fraunces",serif; font-weight:600; font-size:.98rem;}
+.chain .node .d{font-family:"IBM Plex Mono",monospace; font-size:11.5px; color:var(--muted); margin-top:6px; display:none;}
+.chain .node.open .d{display:block;}
+.chain .arrow{color:var(--muted-2); font-size:1.3rem; flex:none;}
+
+.recap-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:14px; margin-top:20px;}
+.recap-card{background:var(--paper-raised); border:1px solid var(--line); border-radius:12px; padding:16px 18px;}
+.recap-card .h{font-family:"IBM Plex Mono",monospace; font-size:10.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--accent-strong); margin-bottom:6px;}
+.recap-card p{font-size:.9rem; margin:0; color:var(--ink-soft);}
+
+footer{border-top:1px solid var(--line); padding:34px 0 10px; font-size:.85rem; color:var(--muted); font-family:"IBM Plex Mono",monospace;}
+footer a{color:var(--muted);}
+
+.hl{color:var(--accent-strong); font-weight:600;}
+sup, sub{line-height:0;}
+</style>
+
+<div class="shell">
+  <nav class="toc" aria-label="Table of contents">
+    <div class="eyebrow">Contents</div>
+    <ol id="toc-list">
+      <li><a href="#problem"><span class="n">00</span>The problem</a></li>
+      <li><a href="#mask"><span class="n">01</span>The attention mask</a></li>
+      <li><a href="#algorithm"><span class="n">02</span>The greedy loop</a></li>
+      <li><a href="#simulator"><span class="n">03</span>Simulator</a></li>
+      <li><a href="#onepass"><span class="n">04</span>One training pass</a></li>
+      <li><a href="#theory"><span class="n">05</span>Why it's OMP</a></li>
+      <li><a href="#overparam"><span class="n">06</span>What actually matters</a></li>
+      <li><a href="#results"><span class="n">07</span>Results</a></li>
+      <li><a href="#beyond"><span class="n">08</span>Beyond features</a></li>
+      <li><a href="#recap"><span class="n">09</span>Recap</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <div class="hero">
+      <div class="kicker">Yasuda, Bateni, Chen, Fahrbach, Fu, Mirrokni — ICLR 2023</div>
+      <h1>Sequential Attention:<br><em>picking one feature at a time,<br>with the model watching itself think.</em></h1>
+      <p class="sub">A step-by-step, hands-on walkthrough of how a single learned softmax mask can turn attention weights into a provably-good greedy feature selector — and why, underneath the neural-network machinery, it's secretly doing 1970s sparse regression.</p>
+      <div class="meta">
+        <span><b>Paper</b> arXiv:2209.14881</span>
+        <span><b>Core claim</b> attention ≡ Orthogonal Matching Pursuit</span>
+        <span><b>Reading time</b> ~20 min, interactive</span>
+      </div>
+      <div class="hero-strip" id="hero-strip" aria-hidden="true"></div>
+      <div class="hero-controls">
+        <button class="btn" id="hero-replay">↻ replay selection</button>
+        <span class="caption">10 candidate features · 4 get selected, one per tick</span>
+      </div>
+    </div>
+
+    <!-- 00 PROBLEM -->
+    <section id="problem">
+      <div class="section-head">
+        <div class="num">00 / Setup</div>
+        <h2>Why feature selection is hard</h2>
+        <div class="dek">Choosing the best k out of d features is combinatorial — and in a neural network, "best" depends on who else is already selected.</div>
+      </div>
+      <p class="lede">You have a dataset with <span class="hl">d</span> features and a budget: keep only <span class="hl">k</span> of them, because the rest cost latency, storage, or a licensing fee per column at inference time. The naive way to find the best subset is to try every combination — <span class="mono">C(d,k)</span> of them — train a model on each, and keep the winner. For d = 100, k = 10, that's roughly 1.7 × 10<sup>13</sup> models. Nobody is training that many models.</p>
+      <p>The second problem is subtler than the combinatorics: features <span class="hl">interact</span>. A feature can look useless on its own and become essential once paired with another (think of two GPS coordinates — either alone is nearly meaningless; together they pinpoint a location). Neural networks make this worse, because the "usefulness" of a feature is filtered through several layers of non-linear transformations before it affects the loss. Scoring features one-by-one, independently, misses exactly the interactions the network is best at exploiting.</p>
+      <div class="callout">
+        <div class="ico">→</div>
+        <p><strong>The move Sequential Attention makes:</strong> instead of scoring all d features at once and freezing that ranking (as most one-shot importance methods do), it selects features one at a time, and re-scores everyone who's left <em>in the context of who's already been picked</em>. Each pick answers "what's the best next feature, given the team I've already assembled?" — not "what's the best feature in isolation?"</p>
+      </div>
+    </section>
+
+    <!-- 01 MASK -->
+    <section id="mask">
+      <div class="section-head">
+        <div class="num">01 / Mechanism</div>
+        <h2>The attention mask</h2>
+        <div class="dek">One learnable vector of logits, one softmax, one Hadamard product with the input. That's the entire architectural change.</div>
+      </div>
+      <p class="lede">Sequential Attention doesn't bolt a new sub-network onto your model. It adds exactly <span class="hl">d extra trainable numbers</span> — a logit <span class="mono">w<sub>i</sub></span> per feature — and multiplies each input feature by a softmax-normalized version of its logit before anything else happens. Formally, given the set of already-selected features <span class="mono">S</span> and its complement <span class="mono">S̄</span> (still up for grabs):</p>
+
+      <div class="eqbox">
+        <div class="lbl">softmax attention mask</div>
+        <div class="row">softmax<sub>i</sub>(w, S̄) &nbsp;=&nbsp;
+          <span class="piecewise"><span class="brace">{</span></span>
+          <span style="display:inline-flex; flex-direction:column; vertical-align:middle;">
+            <span>1&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;if i ∈ S</span>
+            <span>exp(w<sub>i</sub>) / Σ<sub>j∈S̄</sub> exp(w<sub>j</sub>)&emsp;if i ∈ S̄</span>
+          </span>
+        </div>
+        <div class="row" style="margin-top:14px;">masked input:&emsp; X ∘ W,&emsp; where&emsp; W = 1<sub>n</sub> · softmax(w, S̄)<sup>⊤</sup></div>
+      </div>
+
+      <p>Read the two cases separately, because they're doing different jobs. <strong>Already-selected features pass through untouched</strong> (weight = 1) — once a feature has earned its spot, the mask gets out of its way. <strong>Unselected features get softmax-normalized against each other</strong> — they're all fighting over the "how much attention is left to give" budget, so raising one logit necessarily shrinks the others' effective weight. That competitive normalization is what makes the logits behave like a proper importance ranking rather than d independent scalars.</p>
+      <p>The whole assembly then just gets multiplied element-wise (<span class="mono">∘</span>, the Hadamard product) into the input before it hits the rest of the network — one line of code, trained with ordinary backprop, no separate importance-estimation pass required.</p>
+
+      <div class="widget" id="softmax-widget">
+        <div class="widget-head">
+          <h4>Play with the mask</h4>
+          <span class="tag">live · 5 features</span>
+        </div>
+        <p style="margin-bottom:4px; font-size:.92rem;">Drag the logits <span class="mono">w<sub>i</sub></span>. Watch the softmax bars fight for share. Mark a feature "selected" to see it snap to weight 1 and drop out of the competition — exactly like the piecewise formula above.</p>
+        <div id="softmax-sliders"></div>
+        <div class="slider-row" style="grid-template-columns:108px 1fr 44px; margin-top:18px; border-top:1px dashed var(--line-strong); padding-top:16px;">
+          <label>temperature τ</label>
+          <input type="range" id="temp-slider" min="0.15" max="3" step="0.05" value="1">
+          <output id="temp-out">1.00</output>
+        </div>
+        <p style="font-size:.85rem; color:var(--muted); margin:8px 0 0;">Lower τ (softmax(w/τ)) sharpens the mask toward a one-hot pick — this is the knob the paper notes practitioners tune when gradients through the mask get too small to move unselected logits.</p>
+        <div id="softmax-bars" class="barlist" style="margin-top:16px;"></div>
+      </div>
+    </section>
+
+    <!-- 02 ALGORITHM -->
+    <section id="algorithm">
+      <div class="section-head">
+        <div class="num">02 / Procedure</div>
+        <h2>The greedy loop</h2>
+        <div class="dek">k rounds. Each round: train with the current mask, read off the highest logit among what's left, lock it in.</div>
+      </div>
+      <p class="lede">Put the mask inside a training loop and the algorithm writes itself. This is Algorithm 1 from the paper, in full:</p>
+      <div class="algo">
+        <div class="title">Algorithm 1 — Sequential Attention</div>
+        <div class="cm">input: dataset X ∈ ℝⁿˣᵈ, labels y, model f, loss ℓ, budget k</div>
+        <ol>
+          <li><span class="kw">S</span> ← ∅ &emsp;<span class="cm">// no features selected yet</span></li>
+          <li><span class="kw">for</span> t = 1 … k <span class="kw">do</span>
+            <div class="indent">
+              (θ*, w*) ← argmin<sub>θ,w</sub> ℓ( f(X ∘ W ; θ), y ) &emsp;<span class="cm">// train model + mask jointly</span><br>
+              &emsp;&emsp;where W = 1<sub>n</sub> softmax(w, S̄)<sup>⊤</sup><br>
+              i* ← argmax<sub>i∉S</sub> w*<sub>i</sub> &emsp;<span class="cm">// read off the winning logit</span><br>
+              S ← S ∪ {i*} &emsp;<span class="cm">// lock it in, permanently</span>
+            </div>
+          </li>
+          <li><span class="kw">return</span> S</li>
+        </ol>
+      </div>
+      <p>Three things are worth noticing here. First, the objective being minimized, <span class="mono">ℓ(f(X∘W;θ), y)</span>, is nothing exotic — it's the model's ordinary training loss, just fed masked inputs. There's no separate "importance loss" or regularizer to tune. Second, the argmax is over <span class="mono">w*</span>, the <em>raw logits</em>, not the post-softmax weights — the softmax's job was only to shape gradients during training; the actual selection rule is "biggest logit wins." Third, and most important: because <span class="mono">S</span> only grows and never shrinks, round <span class="mono">t</span>'s training run already has rounds 1…t−1's picks baked into the mask as fixed, weight-1 passthroughs. The model that scores round 4's candidates has genuinely seen what rounds 1–3 look like in combination — that's where the "marginal gain given context" property comes from, for free, with no explicit marginal-gain computation.</p>
+    </section>
+
+    <!-- 03 SIMULATOR -->
+    <section id="simulator">
+      <div class="section-head">
+        <div class="num">03 / Hands-on</div>
+        <h2>Run the loop yourself</h2>
+        <div class="dek">A real synthetic dataset, computed live in your browser — 40 samples, 8 candidate features, 3 of them actually matter.</div>
+      </div>
+      <p class="lede">Rather than fake the numbers, this widget generates an actual regression dataset when the page loads (seeded, so it's reproducible) — 8 columns of noise-like features, and a target <span class="mono">y</span> built from a hidden linear combination of just three of them, plus noise. Each round, it computes the true greedy correlation score <span class="mono">|Xᵢᵀ r|</span> for every unselected feature against the current residual <span class="mono">r</span> — this is exactly what the theory in §05 proves the trained attention logits converge to. Click through the rounds and watch it rediscover the hidden features by pure greedy correlation, the same rule Algorithm 1 runs on for the whole neural net.</p>
+
+      <div class="widget" id="omp-widget">
+        <div class="widget-head">
+          <h4>Greedy selection, live</h4>
+          <span class="tag">n = 40 · d = 8 · seeded</span>
+        </div>
+        <div class="omp-grid">
+          <div>
+            <div id="omp-bars" class="barlist"></div>
+          </div>
+          <div>
+            <p style="font-size:.85rem; margin-bottom:8px; color:var(--muted);">selected, in pick order</p>
+            <div class="selected-strip" id="omp-selected"></div>
+            <div class="round-log" id="omp-log"></div>
+          </div>
+        </div>
+        <div class="controls-row">
+          <button class="btn primary" id="omp-next">Select next feature →</button>
+          <button class="btn" id="omp-reveal">Reveal ground truth</button>
+          <button class="btn" id="omp-reset">↻ reset</button>
+        </div>
+        <p id="omp-note" style="font-size:.85rem; color:var(--muted); margin-top:14px;"></p>
+      </div>
+    </section>
+
+    <!-- 04 ONE PASS -->
+    <section id="onepass">
+      <div class="section-head">
+        <div class="num">04 / Efficiency</div>
+        <h2>Training one model, not k</h2>
+        <div class="dek">The straightforward reading of Algorithm 1 trains k separate models. The paper's implementation trains one.</div>
+      </div>
+      <p class="lede">Algorithm 1's outer loop, read literally, calls for k full training runs — one to pick each feature. In practice the paper partitions a <em>single</em> model's training epochs into k contiguous phases and selects one feature at the boundary of each phase, resetting only the attention logits (not the network's weights) between phases:</p>
+      <div class="timeline" id="onepass-timeline"></div>
+      <p style="margin-top:14px;">This works because the network weights <span class="mono">θ</span> don't need to restart from scratch every time a new feature joins <span class="mono">S</span> — they just keep adapting. Only the competition among the *remaining* logits needs a clean slate, since the softmax normalization changes shape every time <span class="mono">S̄</span> shrinks by one. The result: the entire selection procedure costs about as much as training the target model once, plus <span class="mono">d</span> extra floats.</p>
+    </section>
+
+    <!-- 05 THEORY -->
+    <section id="theory">
+      <div class="section-head">
+        <div class="num">05 / Theory</div>
+        <h2>Why this is Orthogonal Matching Pursuit</h2>
+        <div class="dek">Strip the neural network down to linear regression, and Sequential Attention's selections become mathematically identical to a 1993 sparse-recovery algorithm.</div>
+      </div>
+      <p class="lede">The headline theoretical result (Theorem 1.1) is an equivalence chain, not a heuristic analogy. For plain linear regression, replace the softmax mask with a lighter, ℓ<sub>2</sub>-regularized overparameterization and the argument goes through three exact equalities:</p>
+
+      <div class="chain" id="theory-chain">
+        <div class="node" data-d="Objective: min_{w,θ} ‖X(s(w)∘θ) − y‖₂² + (λ/2)(‖w‖₂² + ‖θ_S̄‖₂²), where s_i(w)=1 for i∈S and w_i otherwise. This is Sequential Attention with the softmax swapped for plain ℓ2-regularized overparameterization.">
+          <div class="t">Regularized Linear<br>Sequential Attention</div>
+          <div class="d">click to expand</div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="node" data-d="Because s(w)∘θ can represent any coefficient vector β restricted to be free on S̄ and fixed on S, minimizing over both w and θ jointly with ℓ2 penalties on the overparameterized factors is provably equivalent to minimizing ‖Xβ−y‖₂² + λ‖β_S̄‖₁ directly over β — the classic LASSO.">
+          <div class="t">Sequential LASSO</div>
+          <div class="d">click to expand</div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="node" data-d="Theorem 3.3: at each step, Sequential LASSO selects the feature i maximizing |⟨X_i, P⊥_S̄ y⟩| = ‖Xᵀ P⊥_S̄ y‖∞ — literally 'largest correlation with the current residual', which is the textbook definition of one OMP step. No distributional assumption on X is needed for this equality.">
+          <div class="t">Orthogonal Matching<br>Pursuit</div>
+          <div class="d">click to expand</div>
+        </div>
+      </div>
+
+      <div class="theorem">
+        <div class="tag">Theorem 1.1</div>
+        <p>For linear regression, regularized-linear Sequential Attention is <strong>equivalent</strong> to Orthogonal Matching Pursuit. Every provable guarantee OMP has — recovery under restricted-isometry-style conditions, bounds tied to the sparse condition number of X — transfers directly to Sequential Attention's selections in the linear case.</p>
+      </div>
+
+      <p>The mechanism behind the middle step is worth sitting with: the <span class="hl">Hadamard product overparameterization</span> <span class="mono">s(w) ∘ θ</span> — writing one coefficient as a product of two learned factors instead of directly — is what turns an ℓ<sub>2</sub> penalty on both factors into an effective ℓ<sub>1</sub> penalty on their product. This is the same "implicit regularization via overparameterization" phenomenon studied elsewhere in deep learning theory; here it's precisely what makes softmax-style attention masks behave like sparsity-inducing LASSO penalties, without ever writing an ℓ<sub>1</sub> term into the loss.</p>
+
+      <p>And the last arrow — Sequential LASSO's selection rule matching OMP's residual-correlation rule — is exactly the quantity the simulator in §03 computed at every round: <span class="mono">|Xᵢᵀ r|</span> for the current residual r. That's not a coincidence built for this page; it's the paper's actual proof target.</p>
+    </section>
+
+    <!-- 06 OVERPARAM -->
+    <section id="overparam">
+      <div class="section-head">
+        <div class="num">06 / Ablation</div>
+        <h2>The softmax isn't the magic part</h2>
+        <div class="dek">Swap the softmax for other overparameterizations and performance barely moves — which tells you where the power actually comes from.</div>
+      </div>
+      <p class="lede">It's tempting to credit softmax attention specifically — after all, "attention" is in the name. The paper's ablation pushes back on that: it compares the softmax mask against other ways of overparameterizing each coefficient as a product of two learned factors — an absolute-value (ℓ<sub>1</sub>-style) mask, a squared (ℓ<sub>2</sub>-style) mask, and a normalized variant — and finds they all reach <strong>nearly identical downstream accuracy</strong>.</p>
+      <div class="widget">
+        <div class="widget-head"><h4>Overparameterization variants</h4><span class="tag">schematic, from §5.3's ablation</span></div>
+        <div class="barlist">
+          <div class="bar-row"><div class="name"><span class="dot" style="background:var(--accent)"></span>softmax mask</div><div class="bar-track"><div class="bar-fill selected" style="width:96%"></div></div><div class="val">baseline</div></div>
+          <div class="bar-row"><div class="name"><span class="dot" style="background:var(--muted-2)"></span>ℓ1 (abs value) mask</div><div class="bar-track"><div class="bar-fill" style="width:95%"></div></div><div class="val">≈ same</div></div>
+          <div class="bar-row"><div class="name"><span class="dot" style="background:var(--muted-2)"></span>ℓ2 (squared) mask</div><div class="bar-track"><div class="bar-fill" style="width:94%"></div></div><div class="val">≈ same</div></div>
+          <div class="bar-row"><div class="name"><span class="dot" style="background:var(--muted-2)"></span>normalized mask</div><div class="bar-track"><div class="bar-fill" style="width:95%"></div></div><div class="val">≈ same</div></div>
+        </div>
+      </div>
+      <p>The conclusion the authors draw — and the reason §05's proof bothers to isolate the Hadamard product rather than the softmax — is that <strong>the overparameterized product structure is the active ingredient</strong>, not the specific normalization. Softmax is a convenient, differentiable choice that happens to also give an interpretable "attention weight" story, but the sparsity-inducing effect comes from writing each coefficient as a product of two co-trained factors.</p>
+    </section>
+
+    <!-- 07 RESULTS -->
+    <section id="results">
+      <div class="section-head">
+        <div class="num">07 / Evidence</div>
+        <h2>Does it actually win?</h2>
+        <div class="dek">Reported test accuracy, Sequential Attention (SA) vs. the Leave-One-Out-style local-linear baseline (LLY), on three small benchmarks from the paper's Table 2.</div>
+      </div>
+      <table class="results">
+        <thead><tr><th>Dataset</th><th>LLY baseline</th><th>Sequential Attention</th><th>Δ</th></tr></thead>
+        <tbody>
+          <tr><td>MNIST</td><td>0.944 ± 0.001</td><td class="win">0.956 ± 0.002</td><td class="win">+1.2pp</td></tr>
+          <tr><td>Fashion-MNIST</td><td>0.843 ± 0.005</td><td class="win">0.854 ± 0.003</td><td class="win">+1.1pp</td></tr>
+          <tr><td>ISOLET</td><td>0.866 ± 0.012</td><td class="win">0.920 ± 0.006</td><td class="win">+5.4pp</td></tr>
+        </tbody>
+      </table>
+      <p>The gap widens on ISOLET, a harder, higher-dimensional speech-recognition feature set — consistent with the paper's broader claim that Sequential Attention's edge grows with feature interaction complexity, exactly the regime where independently-scored, one-shot importance methods are structurally blind. The paper also reports strong results on proteomics and activity-recognition benchmarks, and on Criteo-scale click-through data at k ∈ {10,…,35}, though the exact figures depend on the model architecture used downstream.</p>
+    </section>
+
+    <!-- 08 BEYOND -->
+    <section id="beyond">
+      <div class="section-head">
+        <div class="num">08 / Extension</div>
+        <h2>Beyond single features: SequentialAttention++</h2>
+        <div class="dek">The same greedy-attention idea, applied to entire blocks of weights instead of input columns.</div>
+      </div>
+      <p class="lede">A follow-up line of work, <strong>SequentialAttention++</strong>, applies the identical playbook — sequential, attention-scored, greedy selection — to <strong>block sparsification</strong>: instead of picking which input feature to keep, it picks which blocks of a weight matrix to keep, combining the sequential-attention selection rule with group-lasso-style structured penalties so that entire blocks can be zeroed out together. Because whole contiguous blocks disappear (rather than scattered individual weights), the resulting sparsity pattern is the kind GPUs and TPUs can actually exploit for real speedups — unlike unstructured pruning, which is sparse on paper but often just as slow in practice. Reported gains include meaningful model-compression improvements on ImageNet-scale classification without sacrificing accuracy.</p>
+      <div class="callout">
+        <div class="ico">◆</div>
+        <p>The throughline across both papers: <strong>attention weights, trained sequentially with a growing "already committed" set, are a cheap and theoretically-grounded proxy for marginal value</strong> — whether the thing being valued is an input feature or a block of a weight matrix.</p>
+      </div>
+    </section>
+
+    <!-- 09 RECAP -->
+    <section id="recap">
+      <div class="section-head">
+        <div class="num">09 / Cheat sheet</div>
+        <h2>The whole algorithm in six cards</h2>
+      </div>
+      <div class="recap-grid">
+        <div class="recap-card"><div class="h">The problem</div><p>Pick k of d features under combinatorial + interaction constraints; C(d,k) exhaustive search is infeasible.</p></div>
+        <div class="recap-card"><div class="h">The mechanism</div><p>+d logits, one softmax mask, Hadamard product with the input. Selected features pass through at weight 1.</p></div>
+        <div class="recap-card"><div class="h">The loop</div><p>k rounds: train, take argmax of the raw logits among unselected features, freeze it into S forever.</p></div>
+        <div class="recap-card"><div class="h">The efficiency trick</div><p>One model, k training phases, reset only the attention logits between phases — not k separate models.</p></div>
+        <div class="recap-card"><div class="h">The theory</div><p>Linear case: Sequential Attention = Sequential LASSO = Orthogonal Matching Pursuit. Inherits OMP's guarantees.</p></div>
+        <div class="recap-card"><div class="h">The real ingredient</div><p>Not softmax specifically — the Hadamard-product overparameterization is what induces implicit sparsity.</p></div>
+      </div>
+    </section>
+
+    <footer>
+      Built from Yasuda et al., <em>Sequential Attention for Feature Selection</em>, ICLR 2023 (arXiv:2209.14881), and the Google Research blog post on the same work. All computation in §01 and §03 runs live in your browser.
+    </footer>
+  </main>
+
+  <aside class="rail"></aside>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------- seeded RNG ---------- */
+  function mulberry32(seed){
+    return function(){
+      seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+      var t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function gaussian(rng){
+    var u = 1 - rng(), v = rng();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  }
+
+  /* ================= TOC active-state ================= */
+  var sections = Array.prototype.slice.call(document.querySelectorAll('main section, main .hero'));
+  var links = Array.prototype.slice.call(document.querySelectorAll('nav.toc a'));
+  var idToLink = {};
+  links.forEach(function(a){ idToLink[a.getAttribute('href').slice(1)] = a; });
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      var id = e.target.id;
+      if(!id || !idToLink[id]) return;
+      if(e.isIntersecting){
+        links.forEach(function(a){a.classList.remove('active');});
+        idToLink[id].classList.add('active');
+      }
+    });
+  }, {rootMargin:"-15% 0px -70% 0px", threshold:0});
+  sections.forEach(function(s){ if(s.id) io.observe(s); });
+
+  /* ================= HERO strip animation ================= */
+  var HERO_N = 10, HERO_PICKS = [6,2,8,4];
+  var strip = document.getElementById('hero-strip');
+  var sqs = [];
+  for(var i=0;i<HERO_N;i++){ var d=document.createElement('div'); d.className='sq'; strip.appendChild(d); sqs.push(d); }
+  var heroTimer=null;
+  function playHero(){
+    if(heroTimer) heroTimer.forEach(clearTimeout);
+    heroTimer = [];
+    sqs.forEach(function(s){s.classList.remove('on');});
+    HERO_PICKS.forEach(function(idx, k){
+      heroTimer.push(setTimeout(function(){ sqs[idx].classList.add('on'); }, 420*k + 260));
+    });
+  }
+  document.getElementById('hero-replay').addEventListener('click', playHero);
+  if(!window.matchMedia('(prefers-reduced-motion: reduce)').matches){ setTimeout(playHero, 300); }
+  else { HERO_PICKS.forEach(function(idx){ sqs[idx].classList.add('on'); }); }
+
+  /* ================= 01: softmax playground ================= */
+  var FEATS = ['income','age','tenure','clicks_7d','device'];
+  var COLORS = ['#C97418','#3F7A57','#7B6FB1','#B14A3E','#2E7D9B'];
+  var logits = [1.1, -0.4, 0.6, 1.8, -1.0];
+  var selectedMask = [false,false,false,false,false];
+  var temp = 1.0;
+
+  var slidersWrap = document.getElementById('softmax-sliders');
+  FEATS.forEach(function(name, idx){
+    var row = document.createElement('div');
+    row.className = 'slider-row';
+    row.innerHTML =
+      '<label><span class="dot" style="background:'+COLORS[idx]+'"></span>'+name+'</label>'+
+      '<input type="range" min="-3" max="3" step="0.05" value="'+logits[idx]+'" data-i="'+idx+'">'+
+      '<output>'+logits[idx].toFixed(2)+'</output>';
+    slidersWrap.appendChild(row);
+    var range = row.querySelector('input');
+    var out = row.querySelector('output');
+    range.addEventListener('input', function(){
+      logits[idx] = parseFloat(range.value);
+      out.textContent = logits[idx].toFixed(2);
+      renderSoftmax();
+    });
+  });
+  // selection toggles appended after sliders as a compact row
+  var toggleRow = document.createElement('div');
+  toggleRow.style.cssText = "display:flex; flex-wrap:wrap; gap:14px; margin-top:14px; font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--ink-soft);";
+  FEATS.forEach(function(name, idx){
+    var lab = document.createElement('label');
+    lab.style.cssText = "display:flex; align-items:center; gap:6px; cursor:pointer;";
+    lab.innerHTML = '<input type="checkbox" class="check" data-i="'+idx+'"> mark "'+name+'" selected';
+    toggleRow.appendChild(lab);
+    lab.querySelector('input').addEventListener('change', function(e){
+      selectedMask[idx] = e.target.checked;
+      renderSoftmax();
+    });
+  });
+  slidersWrap.parentNode.insertBefore(toggleRow, document.getElementById('temp-slider').closest('.slider-row'));
+
+  document.getElementById('temp-slider').addEventListener('input', function(e){
+    temp = parseFloat(e.target.value);
+    document.getElementById('temp-out').textContent = temp.toFixed(2);
+    renderSoftmax();
+  });
+
+  var barsWrap = document.getElementById('softmax-bars');
+  function renderSoftmax(){
+    // unselected competition pool
+    var pool = [];
+    FEATS.forEach(function(_, idx){ if(!selectedMask[idx]) pool.push(idx); });
+    var maxLogit = pool.length ? Math.max.apply(null, pool.map(function(i){return logits[i]/temp;})) : 0;
+    var expSum = 0;
+    var exps = {};
+    pool.forEach(function(idx){ var e = Math.exp(logits[idx]/temp - maxLogit); exps[idx]=e; expSum += e; });
+
+    var weights = FEATS.map(function(_, idx){
+      return selectedMask[idx] ? 1 : (expSum > 0 ? exps[idx]/expSum : 0);
+    });
+
+    barsWrap.innerHTML = '';
+    FEATS.forEach(function(name, idx){
+      var w = weights[idx];
+      var row = document.createElement('div');
+      row.className = 'bar-row';
+      row.innerHTML =
+        '<div class="name"><span class="dot" style="background:'+COLORS[idx]+'"></span>'+name+(selectedMask[idx]?' <span style="color:var(--accent-strong)">✓</span>':'')+'</div>'+
+        '<div class="bar-track"><div class="bar-fill" style="width:'+(w*100).toFixed(1)+'%; background:'+(selectedMask[idx]?'var(--accent)':COLORS[idx])+'"></div></div>'+
+        '<div class="val">'+w.toFixed(3)+'</div>';
+      barsWrap.appendChild(row);
+    });
+  }
+  renderSoftmax();
+
+  /* ================= 03: OMP / greedy simulator ================= */
+  var N = 40, D = 8;
+  var rng = mulberry32(20220914); // seeded to the paper's arXiv month/day, purely cosmetic
+  var X = []; // D columns of length N
+  for(var f=0; f<D; f++){
+    var col = [];
+    for(var n=0; n<N; n++) col.push(gaussian(rng));
+    X.push(col);
+  }
+  var TRUE_IDX = [1,4,6];
+  var TRUE_COEF = [3.0, -2.0, 1.5];
+  var y = [];
+  for(var n2=0; n2<N; n2++){
+    var val = TRUE_COEF[0]*X[1][n2] + TRUE_COEF[1]*X[4][n2] + TRUE_COEF[2]*X[6][n2] + 0.6*gaussian(rng);
+    y.push(val);
+  }
+  function dot(a,b){ var s=0; for(var i=0;i<a.length;i++) s+=a[i]*b[i]; return s; }
+
+  // solve (A^T A) beta = A^T y via Gaussian elimination, A built from selected columns
+  function solveLstSq(selIdx){
+    var k = selIdx.length;
+    if(k===0) return [];
+    var AtA = [];
+    for(var i=0;i<k;i++){
+      var row=[];
+      for(var j=0;j<k;j++) row.push(dot(X[selIdx[i]], X[selIdx[j]]));
+      AtA.push(row);
+    }
+    var Aty = selIdx.map(function(ci){ return dot(X[ci], y); });
+    // augmented Gaussian elimination
+    for(var c=0;c<k;c++){
+      var piv = AtA[c][c] || 1e-9;
+      for(var cc=0;cc<k;cc++) AtA[c][cc]/=piv;
+      Aty[c]/=piv;
+      for(var r=0;r<k;r++){
+        if(r===c) continue;
+        var factor = AtA[r][c];
+        for(var cc2=0;cc2<k;cc2++) AtA[r][cc2] -= factor*AtA[c][cc2];
+        Aty[r] -= factor*Aty[c];
+      }
+    }
+    return Aty; // beta
+  }
+  function residual(selIdx){
+    if(selIdx.length===0) return y.slice();
+    var beta = solveLstSq(selIdx);
+    var r = y.slice();
+    for(var n3=0;n3<N;n3++){
+      var fitted = 0;
+      for(var i=0;i<selIdx.length;i++) fitted += beta[i]*X[selIdx[i]][n3];
+      r[n3] -= fitted;
+    }
+    return r;
+  }
+
+  var ompSelected = [];
+  var ompRound = 0;
+  var MAXROUNDS = 5;
+  var ompBarsEl = document.getElementById('omp-bars');
+  var ompSelEl = document.getElementById('omp-selected');
+  var ompLogEl = document.getElementById('omp-log');
+  var ompNoteEl = document.getElementById('omp-note');
+  var ompNextBtn = document.getElementById('omp-next');
+
+  function currentScores(){
+    var r = residual(ompSelected);
+    var scores = [];
+    for(var i=0;i<D;i++){
+      if(ompSelected.indexOf(i)>=0){ scores.push(null); continue; }
+      scores.push(Math.abs(dot(X[i], r)));
+    }
+    return scores;
+  }
+
+  function renderOmp(){
+    var scores = currentScores();
+    var maxScore = Math.max.apply(null, scores.filter(function(s){return s!==null;}).concat([0.0001]));
+    ompBarsEl.innerHTML = '';
+    for(var i=0;i<D;i++){
+      var isSel = ompSelected.indexOf(i)>=0;
+      var s = scores[i];
+      var pct = isSel ? 0 : (s/maxScore*100);
+      var row = document.createElement('div');
+      row.className = 'bar-row';
+      row.innerHTML =
+        '<div class="name"><span class="dot" style="background:'+(isSel?'var(--accent)':'var(--muted-2)')+'"></span>feature '+(i+1)+(isSel?' <span style="color:var(--accent-strong)">✓</span>':'')+'</div>'+
+        '<div class="bar-track"><div class="bar-fill'+(isSel?' selected':'')+'" style="width:'+(isSel?100:pct)+'%"></div></div>'+
+        '<div class="val">'+(isSel?'picked':s.toFixed(2))+'</div>';
+      ompBarsEl.appendChild(row);
+    }
+    ompSelEl.innerHTML = ompSelected.map(function(i,r){
+      return '<span class="chip">feature '+(i+1)+'<span class="r">round '+(r+1)+'</span></span>';
+    }).join('') || '<span style="color:var(--muted); font-size:.85rem;">none yet — click "select next feature"</span>';
+
+    ompNextBtn.disabled = ompSelected.length >= MAXROUNDS;
+    if(ompSelected.length >= MAXROUNDS){
+      ompNoteEl.innerHTML = 'Ran ' + MAXROUNDS + ' rounds. Click "reveal ground truth" to check against the features that actually generated y.';
+    } else {
+      ompNoteEl.textContent = '';
+    }
+  }
+
+  function pickNext(){
+    if(ompSelected.length >= MAXROUNDS) return;
+    var scores = currentScores();
+    var bestI = -1, bestV = -Infinity;
+    for(var i=0;i<D;i++){ if(scores[i]!==null && scores[i]>bestV){ bestV=scores[i]; bestI=i; } }
+    ompRound++;
+    var entry = document.createElement('div');
+    entry.className = 'entry';
+    entry.innerHTML = 'round '+ompRound+':  argmax|Xᵢᵀr| → <b>feature '+(bestI+1)+'</b>  (score '+bestV.toFixed(2)+')';
+    ompLogEl.prepend(entry);
+    ompSelected.push(bestI);
+    renderOmp();
+  }
+  ompNextBtn.addEventListener('click', pickNext);
+  document.getElementById('omp-reset').addEventListener('click', function(){
+    ompSelected = []; ompRound = 0; ompLogEl.innerHTML=''; ompNoteEl.textContent=''; renderOmp();
+  });
+  document.getElementById('omp-reveal').addEventListener('click', function(){
+    var truthNames = TRUE_IDX.map(function(i){return 'feature '+(i+1);}).join(', ');
+    var got = ompSelected.filter(function(i){ return TRUE_IDX.indexOf(i)>=0; }).length;
+    ompNoteEl.innerHTML = '<strong>Ground truth:</strong> y was generated from '+truthNames+' (coefficients '+TRUE_COEF.join(', ')+') plus noise. '+
+      'The greedy loop recovered '+got+' of '+TRUE_IDX.length+' true features in its first picks'+(ompSelected.length>TRUE_IDX.length? ' — later rounds pick up noise, which is expected once the true signal is exhausted.':'.');
+  });
+  renderOmp();
+
+  /* ================= 04: one-pass timeline ================= */
+  var tl = document.getElementById('onepass-timeline');
+  var K = 5;
+  for(var p=1;p<=K;p++){
+    var seg = document.createElement('div');
+    seg.className = 'phase';
+    seg.innerHTML = '<div class="k">phase '+p+' / '+K+'</div><div class="f">pick #'+p+'</div>';
+    seg.title = 'Epochs allotted to phase '+p+': attention logits reset, network weights carried over from phase '+(p-1||1)+'.';
+    tl.appendChild(seg);
+  }
+
+  /* ================= 05: theory chain toggle ================= */
+  document.querySelectorAll('#theory-chain .node').forEach(function(node){
+    var d = node.getAttribute('data-d');
+    var small = node.querySelector('.d');
+    small.textContent = 'click to expand';
+    node.addEventListener('click', function(){
+      var isOpen = node.classList.contains('open');
+      document.querySelectorAll('#theory-chain .node').forEach(function(n){n.classList.remove('open');});
+      if(!isOpen){
+        node.classList.add('open');
+        small.textContent = d;
+      } else {
+        small.textContent = 'click to expand';
+      }
+    });
+  });
+
+})();
+</script>
