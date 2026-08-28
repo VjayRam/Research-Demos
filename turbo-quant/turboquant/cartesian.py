@@ -64,19 +64,31 @@ class TurboQuantProd:
     """Algorithm 2: (bits-1)-bit MSE stage + 1-bit QJL sign-quantized residual,
     for unbiased inner-product estimation."""
 
-    def __init__(self, d: int, bits: int, seed: int = 0, device: str | None = None):
+    def __init__(
+        self, d: int, bits: int, seed: int = 0, device: str | None = None, backend: str = "native"
+    ):
         if bits < 2:
             raise ValueError(f"bits must be >= 2 for TurboQuantProd, got {bits}")
         if device is None:
             device = "cuda" if torch.cuda.is_available() else "cpu"
+        if backend not in ("native", "kernel"):
+            raise ValueError(f"backend must be 'native' or 'kernel', got {backend!r}")
+        if backend == "kernel":
+            require_kernel_backend(device)
         self.d = d
         self.bits = bits
         self.device = device
-        self.mse = TurboQuantMSE(d, bits - 1, seed=seed, device=device)
+        self.backend = backend
+        self.mse = TurboQuantMSE(d, bits - 1, seed=seed, device=device, backend=backend)
         self.qjl_matrix = generate_qjl_matrix(d, seed=seed + 1, device=device)
         self._correction_scale = math.sqrt(math.pi / 2) / self.d
 
     def quantize(self, x: torch.Tensor) -> dict:
+        if self.backend == "kernel":
+            from .kernel import prod as kernel_prod
+
+            return kernel_prod.quantize(x, self.mse, self.qjl_matrix)
+
         indices, norm = self.mse.quantize(x)
         x_hat = self.mse.dequantize(indices, norm)
         residual = x - x_hat
@@ -100,11 +112,21 @@ class TurboQuantProd:
         )
 
     def dequantize(self, compressed: dict) -> torch.Tensor:
+        if self.backend == "kernel":
+            from .kernel import prod as kernel_prod
+
+            return kernel_prod.dequantize(compressed, self.mse, self.qjl_matrix, self._correction_scale)
+
         x_hat_mse = self.mse.dequantize(compressed["indices"], compressed["norm"])
         return x_hat_mse + self._qjl_correction(compressed)
 
     def inner_product(self, y: torch.Tensor, compressed: dict) -> torch.Tensor:
         """Unbiased estimate of <x, y> using compressed x (Algorithm 2's payoff)."""
+        if self.backend == "kernel":
+            from .kernel import prod as kernel_prod
+
+            return kernel_prod.inner_product(y, compressed, self.mse, self.qjl_matrix, self._correction_scale)
+
         x_hat_mse = self.mse.dequantize(compressed["indices"], compressed["norm"])
         term1 = (y * x_hat_mse).sum(dim=-1)
 
