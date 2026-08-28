@@ -120,3 +120,45 @@ def test_prod_kernel_inner_product_matches_native():
 def test_prod_kernel_backend_rejects_cpu():
     with pytest.raises(RuntimeError, match="cuda"):
         TurboQuantProd(64, 4, device="cpu", backend="kernel")
+
+
+from turboquant import PolarQuant
+
+
+@requires_kernel_backend
+def test_polar_kernel_quantize_matches_native():
+    d, bits = 64, 4
+    torch.manual_seed(0)
+    x = torch.randn(32, d, device="cuda")
+
+    native = PolarQuant(d, bits, seed=1, device="cuda", backend="native")
+    kernel = PolarQuant(d, bits, seed=1, device="cuda", backend="kernel")
+
+    native_out = native.quantize(x)
+    kernel_out = kernel.quantize(x)
+
+    assert len(native_out["angle_indices"]) == len(kernel_out["angle_indices"])
+    for native_level, kernel_level in zip(native_out["angle_indices"], kernel_out["angle_indices"]):
+        assert torch.equal(native_level, kernel_level)
+    assert torch.allclose(native_out["final_radius"], kernel_out["final_radius"], atol=1e-5)
+
+
+@requires_kernel_backend
+def test_polar_kernel_dequantize_matches_native():
+    d, bits = 64, 4
+    torch.manual_seed(0)
+    x = torch.randn(32, d, device="cuda")
+
+    native = PolarQuant(d, bits, seed=1, device="cuda", backend="native")
+    kernel = PolarQuant(d, bits, seed=1, device="cuda", backend="kernel")
+
+    compressed = native.quantize(x)
+    native_x_hat = native.dequantize(compressed)
+    kernel_x_hat = kernel.dequantize(compressed)
+
+    assert torch.allclose(native_x_hat, kernel_x_hat, atol=1e-4)
+
+
+def test_polar_kernel_backend_rejects_cpu():
+    with pytest.raises(RuntimeError, match="cuda"):
+        PolarQuant(64, 4, device="cpu", backend="kernel")
