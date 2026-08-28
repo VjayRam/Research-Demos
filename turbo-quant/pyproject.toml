@@ -17,6 +17,9 @@ examples = [
 test = [
     "pytest>=7.0",
 ]
+kernel = [
+    "triton>=3.0; sys_platform == 'linux' or sys_platform == 'win32'",
+]
 
 [build-system]
 requires = ["setuptools>=61.0"]
