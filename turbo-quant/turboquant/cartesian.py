@@ -4,6 +4,7 @@ import math
 
 from .codebook import Codebook
 from .distributions import beta_coordinate_density
+from .kernel._require import require_kernel_backend
 from .qjl import generate_qjl_matrix, sign_quantize
 from .rotation import generate_rotation_matrix
 
@@ -13,14 +14,21 @@ import torch
 class TurboQuantMSE:
     """Algorithm 1: rotate, per-coordinate Lloyd-Max quantize, unrotate."""
 
-    def __init__(self, d: int, bits: int, seed: int = 0, device: str | None = None):
+    def __init__(
+        self, d: int, bits: int, seed: int = 0, device: str | None = None, backend: str = "native"
+    ):
         if bits < 1:
             raise ValueError(f"bits must be >= 1, got {bits}")
         if device is None:
             device = "cuda" if torch.cuda.is_available() else "cpu"
+        if backend not in ("native", "kernel"):
+            raise ValueError(f"backend must be 'native' or 'kernel', got {backend!r}")
+        if backend == "kernel":
+            require_kernel_backend(device)
         self.d = d
         self.bits = bits
         self.device = device
+        self.backend = backend
         self.rotation = generate_rotation_matrix(d, seed, device=device)
         self.codebook = Codebook.for_density(beta_coordinate_density(d), bits)
 
@@ -32,6 +40,10 @@ class TurboQuantMSE:
 
     def quantize(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """x: any nonzero vector(s), shape (..., d). Returns (indices, norm)."""
+        if self.backend == "kernel":
+            from .kernel import mse as kernel_mse
+
+            return kernel_mse.quantize(x, self.rotation, self.codebook.centroids)
         norm = torch.norm(x, dim=-1, keepdim=True)
         unit = x / norm.clamp_min(1e-12)
         y = self.rotate(unit)
@@ -39,6 +51,10 @@ class TurboQuantMSE:
         return indices, norm.squeeze(-1)
 
     def dequantize(self, indices: torch.Tensor, norm: torch.Tensor) -> torch.Tensor:
+        if self.backend == "kernel":
+            from .kernel import mse as kernel_mse
+
+            return kernel_mse.dequantize(indices, norm, self.rotation, self.codebook.centroids)
         y_hat = self.codebook.dequantize(indices)
         x_hat = self.unrotate(y_hat)
         return x_hat * norm.unsqueeze(-1)
