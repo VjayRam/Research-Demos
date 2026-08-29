@@ -21,7 +21,19 @@ _DTYPE_ITEMSIZE = 4  # float32
 
 
 def estimate_shared_memory_bytes(d: int, block_m: int, n_resident_matrices: int) -> int:
-    """One BLOCK_M x D operand tile plus n_resident_matrices D x D matrix tiles."""
+    """One BLOCK_M x D operand tile plus n_resident_matrices D x D matrix tiles.
+
+    "Operand tile" here means specifically the tl.dot operand Triton stages in
+    shared memory for the matmul -- not every BLOCK_M x D tensor a kernel
+    loads. prod.py's QJL kernels each load two such tensors (e.g. x and
+    x_hat) via plain elementwise tl.load, not tl.dot, and those don't need
+    simultaneous full-tile shared-memory staging the way a tl.dot operand
+    does. Do not "fix" this into a doubled estimate: this single-operand-tile
+    formula is the one that matches the actual measured OOM thresholds
+    recorded in kernel/prod.py's docstring (BLOCK_M=128, D=128 -> 131072
+    bytes measured, which is exactly 128*128*4 + 128*128*4 -- one operand
+    tile plus one matrix tile, not two of each).
+    """
     operand_tile = block_m * d * _DTYPE_ITEMSIZE
     matrix_tiles = n_resident_matrices * d * d * _DTYPE_ITEMSIZE
     return operand_tile + matrix_tiles
