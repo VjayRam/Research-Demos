@@ -15,3 +15,6 @@ wheels/
 # Local editor / linter config
 .hintrc
 .vscode/
+
+# seq-attention example artifacts
+seq-attention/examples/data_cache/

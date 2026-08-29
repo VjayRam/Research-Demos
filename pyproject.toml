@@ -24,12 +24,13 @@ dev = [
 ]
 
 [tool.uv.workspace]
-members = ["turbo-quant"]
+members = ["turbo-quant", "seq-attention"]
 
 [tool.uv.sources]
 torch = { index = "pytorch-cu130" }
 torchvision = { index = "pytorch-cu130" }
 turboquant = { workspace = true }
+seqattention = { workspace = true }
 
 [[tool.uv.index]]
 name = "pytorch-cu130"
