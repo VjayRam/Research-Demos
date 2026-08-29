@@ -22,6 +22,7 @@ def select_features_naive(
 ) -> list[int]:
     selected: list[int] = []
     for phase in range(k):
+        torch.manual_seed(seed + phase)
         model = model_factory(seed + phase)
         for idx in selected:
             model.mask.select(idx)
