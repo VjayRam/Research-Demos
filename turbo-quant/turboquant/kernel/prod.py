@@ -24,6 +24,13 @@ splitting it into two single-matrix kernels (`_prod_inner_product_term1_kernel`,
 `_prod_inner_product_term2_kernel`), each resident with only one D x D tile,
 summed on the host afterward.
 
+Known limitation: at D=128, `quantize`/`dequantize`'s two-D×D-matrix-per-block
+shared-memory footprint is already at this GPU's per-block limit, so latency
+here is 1.2-2.7x slower than native (still correct, just not equal-or-better
+latency) -- documented as an accepted exception in the design spec's "Known
+Limitations" section rather than silently absorbed. D=64 fully meets the
+same-or-better requirement.
+
 Like `kernel.mse`, num_warps is pinned per kernel rather than left to the
 compiler's default heuristic -- empirically, that heuristic was wildly
 unstable across constexpr specializations on this machine's triton-windows

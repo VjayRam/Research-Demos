@@ -197,6 +197,26 @@ absorbed into an average.
   real on the project's RTX 4070 as part of task completion, results reviewed
   against the "same or better" requirement before the work is considered done.
 
+## Known Limitations (post-implementation)
+
+`TurboQuantProd`'s kernel backend does not meet the same-or-better performance
+requirement at `d=128` specifically: it is 1.2-2.7x slower than native at that
+head dimension (it fully meets the requirement at `d=64`, and `TurboQuantMSE`
+and `PolarQuant` meet it at every tested `d`). Root cause, confirmed via direct
+experimentation on the project's RTX 4070: `TurboQuantProd`'s QJL-projection
+kernels each hold two resident D×D matrices (rotation and QJL) per block, and
+at `d=128` the block size needed already saturates this GPU's per-block shared
+memory; neither a larger block nor further kernel fusion (to reduce prod's
+launch count, closing the gap to native) is possible without hitting the same
+out-of-resources limit. This is a hardware ceiling on this GPU class, not a
+tuning gap in the current kernel design — accepted as a known, documented
+exception per this spec's own "explicitly document as an accepted non-goal"
+allowance in the Performance Parity section above, rather than silently
+absorbed. `backend="kernel"` remains correct (byte-identical/tight-tolerance
+output to native) at `d=128`; only its latency is worse there. See
+`.superpowers/sdd/2026-08-28-turboquant-kernel-backend/task-6-report.md` for
+the full before/after latency data behind this finding.
+
 ## Open Items for the Implementation Plan
 
 - Exact Triton kernel signatures, block-size selection per `d`, and grid
