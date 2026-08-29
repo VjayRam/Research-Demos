@@ -1,6 +1,7 @@
 """Algorithm 1 (TurboQuant_mse) and Algorithm 2 (TurboQuant_prod), verbatim."""
 
 import math
+import warnings
 
 from .codebook import Codebook
 from .distributions import beta_coordinate_density
@@ -25,6 +26,18 @@ class TurboQuantMSE:
             raise ValueError(f"backend must be 'native' or 'kernel', got {backend!r}")
         if backend == "kernel":
             require_kernel_backend(device)
+            from .kernel._shared_mem import fits_in_shared_memory
+            from .kernel.mse import _BLOCK_M
+
+            if not fits_in_shared_memory(device, d, _BLOCK_M, n_resident_matrices=1):
+                warnings.warn(
+                    f"TurboQuantMSE backend='kernel' requested for d={d}, but this device's "
+                    f"shared memory is too small for the kernel backend's tile size at this "
+                    f"dimension. Falling back to backend='native' for this instance.",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+                backend = "native"
         self.d = d
         self.bits = bits
         self.device = device
@@ -75,6 +88,18 @@ class TurboQuantProd:
             raise ValueError(f"backend must be 'native' or 'kernel', got {backend!r}")
         if backend == "kernel":
             require_kernel_backend(device)
+            from .kernel._shared_mem import fits_in_shared_memory
+            from .kernel.prod import _BLOCK_M
+
+            if not fits_in_shared_memory(device, d, _BLOCK_M, n_resident_matrices=1):
+                warnings.warn(
+                    f"TurboQuantProd backend='kernel' requested for d={d}, but this device's "
+                    f"shared memory is too small for the kernel backend's tile size at this "
+                    f"dimension. Falling back to backend='native' for this instance.",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+                backend = "native"
         self.d = d
         self.bits = bits
         self.device = device

@@ -165,3 +165,41 @@ def test_polar_kernel_dequantize_matches_native():
 def test_polar_kernel_backend_rejects_cpu():
     with pytest.raises(RuntimeError, match="cuda"):
         PolarQuant(64, 4, device="cpu", backend="kernel")
+
+
+@requires_kernel_backend
+def test_mse_kernel_backend_falls_back_to_native_when_shared_memory_insufficient(monkeypatch):
+    from turboquant.kernel import _shared_mem
+
+    monkeypatch.setattr(_shared_mem, "device_shared_memory_limit", lambda device: 0)
+
+    with pytest.warns(RuntimeWarning, match="shared memory"):
+        instance = TurboQuantMSE(64, 4, seed=1, device="cuda", backend="kernel")
+
+    assert instance.backend == "native"
+
+
+@requires_kernel_backend
+def test_prod_kernel_backend_falls_back_to_native_when_shared_memory_insufficient(monkeypatch):
+    from turboquant.kernel import _shared_mem
+
+    monkeypatch.setattr(_shared_mem, "device_shared_memory_limit", lambda device: 0)
+
+    with pytest.warns(RuntimeWarning, match="shared memory"):
+        instance = TurboQuantProd(64, 4, seed=1, device="cuda", backend="kernel")
+
+    assert instance.backend == "native"
+    assert instance.mse.backend == "native"
+
+
+@requires_kernel_backend
+@pytest.mark.parametrize("d", [64, 128])
+def test_kernel_backend_not_downgraded_at_default_sizes(d):
+    """Regression guard: the shared-memory check must not be so conservative
+    that it downgrades configs that actually fit on this GPU (Task 6's fix)."""
+    mse = TurboQuantMSE(d, 4, seed=1, device="cuda", backend="kernel")
+    assert mse.backend == "kernel"
+
+    prod = TurboQuantProd(d, 4, seed=1, device="cuda", backend="kernel")
+    assert prod.backend == "kernel"
+    assert prod.mse.backend == "kernel"

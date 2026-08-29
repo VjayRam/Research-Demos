@@ -112,6 +112,19 @@ Both checks live in `turboquant/kernel/_require.py`:
 `require_kernel_backend(device: str) -> None`, called once from each class's
 `__init__` when `backend="kernel"`.
 
+A third condition is handled differently from the two above: `backend="kernel"`
+with `device="cuda"` and `triton` installed, but where the requested `d`'s
+kernel tile footprint would not fit this device's shared memory
+(`torch.cuda.get_device_properties(device).shared_memory_per_block_optin`).
+Unlike the two hard-error cases above, there is nothing the caller can install
+or change to fix this — it's a property of the requested size versus the
+specific GPU. This case emits a `RuntimeWarning` and silently downgrades that
+instance's `backend` to `"native"` rather than raising, so a caller who
+doesn't override the default `d`/`bits` never has to think about it, and a
+caller who does gets a clear, actionable warning instead of a hard crash. This
+is the one exception to "no silent fallback to native" stated above; it does
+not apply to the CUDA/triton-availability checks, which remain hard errors.
+
 ### Kernel fusion design, per algorithm
 
 **MSE (`kernel/mse.py`)**
