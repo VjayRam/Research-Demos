@@ -24,11 +24,12 @@ Interactive walkthrough of the math: [`turboquant-primer.html`](turboquant-prime
 2. [Algorithm overview](#algorithm-overview)
 3. [Mathematical foundation](#mathematical-foundation)
 4. [Results](#results)
-5. [File structure](#file-structure)
-6. [Installation](#installation)
-7. [Usage](#usage)
-8. [Experiments](#experiments)
-9. [Limitations](#limitations)
+5. [Kernel backend](#kernel-backend)
+6. [File structure](#file-structure)
+7. [Installation](#installation)
+8. [Usage](#usage)
+9. [Experiments](#experiments)
+10. [Limitations](#limitations)
 
 ---
 
@@ -193,6 +194,48 @@ Source: `examples/results/run_perf_benchmark_20260827_160800.csv`.
 
 ---
 
+## Kernel backend
+
+Beyond the native (`torch` ops) implementation, every class also accepts
+`backend="kernel"` (`device="cuda"` required) — a hand-fused Triton
+implementation for `d` in 64/128 that reduces kernel-launch count and avoids
+materializing intermediates. `backend="native"` remains the default
+everywhere; calling code never has to branch on which backend is active, since
+both return identical (or tight-tolerance) results. See
+[`EXAMPLES.md`](EXAMPLES.md) for usage, error-handling, and the shared-memory
+auto-fallback behavior; full design in
+[`docs/superpowers/specs/2026-08-28-turboquant-kernel-backend-design.md`](../docs/superpowers/specs/2026-08-28-turboquant-kernel-backend-design.md).
+
+### Component audit: what got a kernel, and what didn't
+
+Every user-facing algorithm has a dedicated fused Triton kernel. The
+supporting math underneath is one-time/construction-cost or was folded
+directly into those three kernels rather than kept as separately-accelerated
+pieces:
+
+| Component | Native implementation | Kernel implementation | Why / why not |
+|---|---|---|---|
+| `TurboQuantMSE` (Algorithm 1) | `cartesian.py` | `kernel/mse.py` | Fused normalize→rotate→argmin (quantize), lookup→unrotate→rescale (dequantize) |
+| `TurboQuantProd` (Algorithm 2) | `cartesian.py` | `kernel/prod.py` | Reuses `kernel/mse.py` for its internal `(bits-1)`-bit stage; adds its own fused QJL-projection/sign and correction kernels |
+| `PolarQuant` | `polar.py` | `kernel/polar.py` | One fused kernel per recursion level; no cross-level fusion (each level depends on the previous level's radii, same as native) |
+| `rotation.py` (`generate_rotation_matrix`) | — | *(none)* | One-time setup cost at construction, cached per `(d, seed, device)`; the resulting matrix is just loaded resident by each algorithm's kernel, not itself a kernel |
+| `qjl.py` (`generate_qjl_matrix`, `sign_quantize`) | — | *(none, absorbed)* | Matrix generation is one-time/cached; `sign_quantize` itself is fused directly into `kernel/prod.py`'s kernel rather than kept as a separate op |
+| `distributions.py` (`Density`, densities) | — | *(none)* | Construction-time only (feeds the Lloyd-Max solver once), never runs per-vector |
+| `lloyd_max.py` (solver) | — | *(none)* | Construction-time only, same reasoning |
+| `codebook.py` (`Codebook`) | Used directly by the native path | *(none, absorbed)* | The kernel path doesn't call `Codebook` at runtime — its nearest-centroid logic is re-implemented as fused in-kernel argmin/gather inside each algorithm's own kernel instead |
+
+Performance note: `TurboQuantMSE` and `PolarQuant`'s kernel backends meet or
+beat native at every tested `(d, bits)`. `TurboQuantProd`'s kernel backend
+meets it at `d=64` but is ~1.2-2.7x slower than native at `d=128` on GPUs with
+a tight shared-memory budget — a documented, hardware-explained exception
+(correctness unaffected), not a silently-absorbed regression. See the spec's
+"Known Limitations" section for the full detail, and `EXAMPLES.md` for how
+the package protects against a `(d, bits)`/GPU combination that would
+outright fail: it warns and automatically falls back to native rather than
+crashing.
+
+---
+
 ## File structure
 
 ```
@@ -205,14 +248,21 @@ turbo-quant/
         qjl.py               Algorithm 2 projection + sign quantize
         cartesian.py         TurboQuantMSE, TurboQuantProd
         polar.py             PolarQuant
+        kernel/              Triton kernel backend (backend="kernel", CUDA-only)
+            _require.py      CUDA/triton availability guard
+            _shared_mem.py   Shared-memory fit check + native auto-fallback
+            mse.py           Fused kernels for TurboQuantMSE
+            prod.py          Fused kernels for TurboQuantProd
+            polar.py         Fused kernels for PolarQuant
         __init__.py          Public API
-    tests/                   55 tests (CPU + CUDA)
+    tests/                   72+ tests (CPU + CUDA)
     examples/
         kv_cache_hook.py     QuantizingCache (quality harness)
         run_benchmark.py     Perplexity sweep on repeated sample text
         run_experiments.py   WikiText-2 perplexity + real-key distortion
-        run_perf_benchmark.py  CPU vs CUDA latency / throughput
+        run_perf_benchmark.py  CPU vs CUDA latency / throughput, native vs kernel
         results_logger.py    Timestamped CSV writer
+    EXAMPLES.md              Usage cookbook (recipes, kernel backend, pitfalls)
     turboquant-primer.html
     README.md
 ```
