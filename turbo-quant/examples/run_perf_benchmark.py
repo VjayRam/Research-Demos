@@ -47,8 +47,8 @@ def _timed_call(fn, device: str, repeats: int):
 
 
 @torch.no_grad()
-def benchmark_config(cls, d: int, bits: int, device: str, batch_size: int, repeats: int) -> dict:
-    quantizer = cls(d, bits, seed=0, device=device)
+def benchmark_config(cls, d: int, bits: int, device: str, backend: str, batch_size: int, repeats: int) -> dict:
+    quantizer = cls(d, bits, seed=0, device=device, backend=backend)
     x = torch.randn(batch_size, d, device=device)
 
     # Warm-up pass (discarded) to avoid measuring one-time cache-population
@@ -109,28 +109,31 @@ def run(
                         print(f"{device} {algorithm} b={bits} d={d}: skipped (polar requires power-of-2 d)")
                         continue
 
-                    stats = benchmark_config(cls, d, bits, device, batch_size, repeats)
+                    backends = ["native", "kernel"] if device == "cuda" else ["native"]
+                    for backend in backends:
+                        stats = benchmark_config(cls, d, bits, device, backend, batch_size, repeats)
 
-                    print(
-                        f"{device} {algorithm} b={bits} d={d}: "
-                        f"quantize={stats['quantize_latency_ms_mean']:.2f}ms "
-                        f"(min {stats['quantize_latency_ms_min']:.2f}ms, "
-                        f"{stats['quantize_throughput_vecs_per_sec']:.0f} vecs/s), "
-                        f"dequantize={stats['dequantize_latency_ms_mean']:.2f}ms "
-                        f"(min {stats['dequantize_latency_ms_min']:.2f}ms, "
-                        f"{stats['dequantize_throughput_vecs_per_sec']:.0f} vecs/s)"
-                    )
+                        print(
+                            f"{device} {algorithm} b={bits} d={d} backend={backend}: "
+                            f"quantize={stats['quantize_latency_ms_mean']:.2f}ms "
+                            f"(min {stats['quantize_latency_ms_min']:.2f}ms, "
+                            f"{stats['quantize_throughput_vecs_per_sec']:.0f} vecs/s), "
+                            f"dequantize={stats['dequantize_latency_ms_mean']:.2f}ms "
+                            f"(min {stats['dequantize_latency_ms_min']:.2f}ms, "
+                            f"{stats['dequantize_throughput_vecs_per_sec']:.0f} vecs/s)"
+                        )
 
-                    rows.append(
-                        {
-                            "device": device,
-                            "algorithm": algorithm,
-                            "bits": bits,
-                            "head_dim": d,
-                            "batch_size": batch_size,
-                            **stats,
-                        }
-                    )
+                        rows.append(
+                            {
+                                "device": device,
+                                "backend": backend,
+                                "algorithm": algorithm,
+                                "bits": bits,
+                                "head_dim": d,
+                                "batch_size": batch_size,
+                                **stats,
+                            }
+                        )
 
     if not rows:
         print("No configs were run; nothing to write.")
