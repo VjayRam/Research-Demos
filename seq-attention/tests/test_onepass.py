@@ -5,12 +5,12 @@ from seqattention.onepass import select_features_onepass
 from seqattention.selector import select_features_naive
 
 
-def _make_sparse_regression_problem(seed=0, n=200, d=10, true_idx=(1, 4, 6)):
+def _make_sparse_regression_problem(seed=0, n=200, d=10, true_idx=(1, 4, 6), base=3.0):
     generator = torch.Generator().manual_seed(seed)
     X = torch.randn(n, d, generator=generator)
     true_coef = torch.zeros(d)
     for i, idx in enumerate(true_idx):
-        true_coef[idx] = 3.0 - i
+        true_coef[idx] = base - i
     y = X @ true_coef
     return X, y, set(true_idx)
 
@@ -30,7 +30,7 @@ def test_select_features_onepass_recovers_ground_truth_support():
 
 
 def test_select_features_onepass_matches_naive_baseline_selected_set():
-    X, y, _ = _make_sparse_regression_problem(true_idx=(0, 3, 5, 7))
+    X, y, _ = _make_sparse_regression_problem(true_idx=(0, 3, 5, 7), base=6.0)
     naive = select_features_naive(
         model_factory=lambda seed: LinearRegressionModel(num_features=X.shape[1], seed=seed),
         loss_fn=mse_loss, X=X, y=y, k=4, train_steps=300, lr=0.1, seed=0,

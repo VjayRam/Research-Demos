@@ -1,8 +1,8 @@
 """The paper's one-pass training trick: instead of training k independent
-models (selector.py's select_features_naive), train a single model across
-k phases, resetting the attention logits and overparam_weight for unselected
-features (not the model's other weights, and not the growing selected set)
-between phases."""
+models (selector.py's select_features_naive), train a single deterministic
+model across k phases, resetting the attention logits and overparam_weight for
+unselected features (not the model's other weights, and not the growing selected
+set) between phases."""
 
 from typing import Callable
 
@@ -19,6 +19,7 @@ def select_features_onepass(
     lr: float = 0.05,
     seed: int = 0,
 ) -> list[int]:
+    torch.manual_seed(seed)
     model = model_factory(seed)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     selected: list[int] = []
