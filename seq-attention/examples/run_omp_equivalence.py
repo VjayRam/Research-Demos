@@ -18,11 +18,11 @@ TRUE_IDX = (1, 4, 6)
 TRUE_COEF = (3.0, -2.0, 1.5)
 
 
-def mse_loss(y_pred, y_true):
+def mse_loss(y_pred: torch.Tensor, y_true: torch.Tensor) -> torch.Tensor:
     return torch.mean((y_pred - y_true) ** 2)
 
 
-def build_problem():
+def build_problem() -> tuple[torch.Tensor, torch.Tensor]:
     generator = torch.Generator().manual_seed(SEED)
     A = torch.randn(N, D, generator=generator)
     X, _ = torch.linalg.qr(A)
