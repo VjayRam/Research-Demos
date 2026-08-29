@@ -2394,6 +2394,17 @@ wheels = [
 ]
 
 [[package]]
+name = "triton-windows"
+version = "3.7.1.post27"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/26/f5/0f5eaf48abc0c9900f600dbdfa8139e678aa7d47dc1da51b0541979e96df/triton_windows-3.7.1.post27-cp311-cp311-win_amd64.whl", hash = "sha256:b739bd7d39f919280294d8af172a90aa2f17a4377bfbca2ea30a8afae61d5eaa", size = 49679173, upload-time = "2026-06-21T16:48:02.395Z" },
+    { url = "https://files.pythonhosted.org/packages/76/30/325b420efd0047e119679c646a9a410db216069800ec009fae3da26c69a3/triton_windows-3.7.1.post27-cp312-cp312-win_amd64.whl", hash = "sha256:f5406230d7dbf6965bc4051fcad27b81c39ba4a4bfde06f494dd7ff4eb325a9e", size = 49683004, upload-time = "2026-06-21T16:48:14.02Z" },
+    { url = "https://files.pythonhosted.org/packages/ec/28/f0b2801c2cfd79be5878bf429e82b5da00fb78f046a9c21ba946681cc467/triton_windows-3.7.1.post27-cp313-cp313-win_amd64.whl", hash = "sha256:e8ed215c02afc85a81f0097196f8bebdf6f68085f1bc0fe8771b9a74783f15ab", size = 49684257, upload-time = "2026-06-21T16:48:24.901Z" },
+    { url = "https://files.pythonhosted.org/packages/94/f7/725aedb131e35ce5f94e6117154a6aca8b9e30cc058e19ec330072fc8990/triton_windows-3.7.1.post27-cp314-cp314-win_amd64.whl", hash = "sha256:b4b581bc56ea75321c404f0ef9f08aff0369cd05c4e5811a57c86bfe4e532938", size = 50903815, upload-time = "2026-06-21T16:48:36.618Z" },
+]
+
+[[package]]
 name = "turboquant"
 version = "0.1.0"
 source = { editable = "turbo-quant" }
@@ -2408,6 +2419,10 @@ examples = [
     { name = "datasets" },
     { name = "transformers" },
 ]
+kernel = [
+    { name = "triton", marker = "sys_platform == 'linux'" },
+    { name = "triton-windows", marker = "sys_platform == 'win32'" },
+]
 test = [
     { name = "pytest" },
 ]
@@ -2420,8 +2435,10 @@ requires-dist = [
     { name = "scipy", specifier = ">=1.10" },
     { name = "torch", specifier = ">=2.0", index = "https://download.pytorch.org/whl/cu130" },
     { name = "transformers", marker = "extra == 'examples'", specifier = ">=4.40" },
+    { name = "triton", marker = "sys_platform == 'linux' and extra == 'kernel'", specifier = ">=3.0" },
+    { name = "triton-windows", marker = "sys_platform == 'win32' and extra == 'kernel'", specifier = ">=3.7.0" },
 ]
-provides-extras = ["examples", "test"]
+provides-extras = ["examples", "test", "kernel"]
 
 [[package]]
 name = "typer"
