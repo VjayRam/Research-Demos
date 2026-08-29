@@ -67,8 +67,9 @@ from turboquant import TurboQuantProd
 
 
 @requires_kernel_backend
-def test_prod_kernel_quantize_matches_native():
-    d, bits = 64, 4
+@pytest.mark.parametrize("d", [64, 128])
+def test_prod_kernel_quantize_matches_native(d):
+    bits = 4
     torch.manual_seed(0)
     x = torch.randn(32, d, device="cuda")
 
@@ -85,8 +86,9 @@ def test_prod_kernel_quantize_matches_native():
 
 
 @requires_kernel_backend
-def test_prod_kernel_dequantize_matches_native():
-    d, bits = 64, 4
+@pytest.mark.parametrize("d", [64, 128])
+def test_prod_kernel_dequantize_matches_native(d):
+    bits = 4
     torch.manual_seed(0)
     x = torch.randn(32, d, device="cuda")
 
@@ -101,8 +103,9 @@ def test_prod_kernel_dequantize_matches_native():
 
 
 @requires_kernel_backend
-def test_prod_kernel_inner_product_matches_native():
-    d, bits = 64, 4
+@pytest.mark.parametrize("d", [64, 128])
+def test_prod_kernel_inner_product_matches_native(d):
+    bits = 4
     torch.manual_seed(0)
     x = torch.randn(32, d, device="cuda")
     y = torch.randn(32, d, device="cuda")

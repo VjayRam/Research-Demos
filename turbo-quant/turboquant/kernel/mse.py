@@ -28,6 +28,11 @@ across constexpr specializations, and the best fixed value differs by kernel:
 
 Both were verified via `examples/run_perf_benchmark.py` to match or beat
 native across every bits/head_dim config.
+
+Note: `tl.dot` requires each operand dimension to be at least 16 elements.
+`d < 16` (untested here, and not used by this package's default configs of
+64/128) will fail at Triton compile time on `backend="kernel"`, unlike the
+previous per-row-loop kernel, which had no such floor.
 """
 
 import torch

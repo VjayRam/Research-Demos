@@ -24,12 +24,15 @@ splitting it into two single-matrix kernels (`_prod_inner_product_term1_kernel`,
 `_prod_inner_product_term2_kernel`), each resident with only one D x D tile,
 summed on the host afterward.
 
-Known limitation: at D=128, `quantize`/`dequantize`'s two-D×D-matrix-per-block
-shared-memory footprint is already at this GPU's per-block limit, so latency
-here is 1.2-2.7x slower than native (still correct, just not equal-or-better
-latency) -- documented as an accepted exception in the design spec's "Known
-Limitations" section rather than silently absorbed. D=64 fully meets the
-same-or-better requirement.
+Known limitation: at D=128, `_qjl_project_sign_kernel`/`_qjl_correct_kernel`
+(one resident D×D matrix each, not two) are already close to this GPU's
+per-block shared-memory ceiling at BLOCK_M=64; BLOCK_M=128 measurably exceeds
+it (131072 bytes vs a 101376-byte limit), and further fusion would reproduce
+the two-resident-matrix, 163840-byte overflow the original inner_product
+kernel hit above. So `quantize`/`dequantize` land 1.2-2.7x slower than native
+at D=128 (still correct, just not equal-or-better latency) -- documented as an
+accepted exception in the design spec's "Known Limitations" section rather
+than silently absorbed. D=64 fully meets the same-or-better requirement.
 
 Like `kernel.mse`, num_warps is pinned per kernel rather than left to the
 compiler's default heuristic -- empirically, that heuristic was wildly
@@ -45,7 +48,6 @@ import torch
 import triton
 import triton.language as tl
 
-from . import mse as kernel_mse  # noqa: F401  (re-exported for the mse_stage.quantize/dequantize dispatch)
 
 _BLOCK_M = 64
 

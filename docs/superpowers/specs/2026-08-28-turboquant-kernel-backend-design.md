@@ -201,21 +201,41 @@ absorbed into an average.
 
 `TurboQuantProd`'s kernel backend does not meet the same-or-better performance
 requirement at `d=128` specifically: it is 1.2-2.7x slower than native at that
-head dimension (it fully meets the requirement at `d=64`, and `TurboQuantMSE`
-and `PolarQuant` meet it at every tested `d`). Root cause, confirmed via direct
-experimentation on the project's RTX 4070: `TurboQuantProd`'s QJL-projection
-kernels each hold two resident D×D matrices (rotation and QJL) per block, and
-at `d=128` the block size needed already saturates this GPU's per-block shared
-memory; neither a larger block nor further kernel fusion (to reduce prod's
-launch count, closing the gap to native) is possible without hitting the same
-out-of-resources limit. This is a hardware ceiling on this GPU class, not a
-tuning gap in the current kernel design — accepted as a known, documented
-exception per this spec's own "explicitly document as an accepted non-goal"
-allowance in the Performance Parity section above, rather than silently
-absorbed. `backend="kernel"` remains correct (byte-identical/tight-tolerance
-output to native) at `d=128`; only its latency is worse there. See
+head dimension on both `quantize` and `dequantize`, at every tested bit-width.
+It fully meets the requirement at `d=64`. Root cause, confirmed via direct
+experimentation on the project's RTX 4070: `_qjl_project_sign_kernel` and
+`_qjl_correct_kernel` (the two per-call kernels `TurboQuantProd` adds beyond
+the reused MSE stage) each hold one resident D×D matrix per block, and at
+`d=128, BLOCK_M=64` that block is already close to this GPU's per-block shared
+memory ceiling — a larger `BLOCK_M=128` measurably exceeds it (131072 bytes
+required vs a 101376-byte hardware limit), and fusing further to close the
+remaining gap (e.g. merging `quantize`'s two kernels into one) would reproduce
+the two-resident-matrix, 163840-byte overflow that `inner_product`'s original
+single-kernel design hit and was split apart to fix (see
+`kernel/prod.py`'s module docstring). So the residual d=128 latency gap is
+best understood as unamortized per-launch/synchronization overhead from
+`TurboQuantProd`'s multi-kernel structure at that head dimension, which shared
+memory blocks the two obvious ways of closing (bigger blocks, more fusion) —
+not a single flat "hardware ceiling" on the kernel design as a whole. This is
+accepted as a known, documented exception per this spec's own "explicitly
+document as an accepted non-goal" allowance in the Performance Parity section
+above, rather than silently absorbed. `backend="kernel"` remains correct
+(byte-identical/tight-tolerance output to native) at `d=128`; only its latency
+is worse there.
+
+`TurboQuantMSE`'s kernel backend meets the requirement decisively on
+`quantize` and at most `dequantize` configs, but the final real sweep shows
+`dequantize` landing 1.05-2.8x above native in most `d`/bits cells (best
+explanation: run-to-run variance — the range across four independent full
+sweeps for the same cells spans roughly 0.17-1.01ms) rather than a clean
+same-or-better result at every single cell. `PolarQuant` shows no such
+inconsistency across sweeps. Neither `mse` nor `polar` is treated as a
+documented exception the way `prod`/`d=128` is, since no run showed a stable,
+reproducible regression there the way `prod`/`d=128` does — but this is a
+softer claim than "meets it at every tested `d` and configuration," and is
+recorded here as such. See
 `.superpowers/sdd/2026-08-28-turboquant-kernel-backend/task-6-report.md` for
-the full before/after latency data behind this finding.
+the full before/after latency data behind both findings.
 
 ## Open Items for the Implementation Plan
 
