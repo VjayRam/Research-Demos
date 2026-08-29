@@ -1,0 +1,1003 @@
+<title>RDKV Primer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+/* ============================= TOKENS ============================= */
+:root{
+  --bg:#EDF1EF;
+  --surface:#FFFFFF;
+  --surface-2:#E1E8E5;
+  --surface-3:#D3DCD8;
+  --ink:#12191A;
+  --ink-muted:#57696A;
+  --ink-faint:#8A9997;
+  --rule:#C9D3CF;
+  --accent-signal:#0E8C82;
+  --accent-signal-soft:#0E8C821a;
+  --accent-quant:#A8650A;
+  --accent-quant-soft:#A8650A1a;
+  --accent-error:#B23B23;
+  --accent-error-soft:#B23B231a;
+  --shadow:0 1px 2px rgba(18,25,26,0.06), 0 6px 20px rgba(18,25,26,0.05);
+  --radius:10px;
+  --font-display:'Newsreader', 'Iowan Old Style', 'Georgia', serif;
+  --font-body:'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
+  --font-mono:'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  /* bit-width tier scale, b in {0,2,4,8,16} */
+  --bit16:#0E8C82;
+  --bit8:#2E8FBF;
+  --bit4:#A8650A;
+  --bit2:#C9862E;
+  --bit0:#8A9997;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0C1213; --surface:#131B1C; --surface-2:#1B2426; --surface-3:#25302F;
+    --ink:#E7EEEC; --ink-muted:#93A6A3; --ink-faint:#5E7371; --rule:#243030;
+    --accent-signal:#4FE3D2; --accent-signal-soft:#4FE3D226;
+    --accent-quant:#F2B24A; --accent-quant-soft:#F2B24A26;
+    --accent-error:#FF7A61; --accent-error-soft:#FF7A6126;
+    --shadow:0 1px 2px rgba(0,0,0,0.3), 0 8px 28px rgba(0,0,0,0.35);
+    --bit16:#4FE3D2; --bit8:#6FB8E8; --bit4:#F2B24A; --bit2:#E0954D; --bit0:#5E7371;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0C1213; --surface:#131B1C; --surface-2:#1B2426; --surface-3:#25302F;
+  --ink:#E7EEEC; --ink-muted:#93A6A3; --ink-faint:#5E7371; --rule:#243030;
+  --accent-signal:#4FE3D2; --accent-signal-soft:#4FE3D226;
+  --accent-quant:#F2B24A; --accent-quant-soft:#F2B24A26;
+  --accent-error:#FF7A61; --accent-error-soft:#FF7A6126;
+  --shadow:0 1px 2px rgba(0,0,0,0.3), 0 8px 28px rgba(0,0,0,0.35);
+  --bit16:#4FE3D2; --bit8:#6FB8E8; --bit4:#F2B24A; --bit2:#E0954D; --bit0:#5E7371;
+}
+
+/* ============================= RESET/BASE ============================= */
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+@media (prefers-reduced-motion: reduce){ html{scroll-behavior:auto;} *{animation-duration:0.001ms !important; transition-duration:0.001ms !important;} }
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:var(--font-body); font-size:16px; line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4{font-family:var(--font-display); font-weight:600; text-wrap:balance; margin:0 0 .5em; color:var(--ink);}
+p{margin:0 0 1em; max-width:66ch;}
+a{color:var(--accent-signal);}
+.mono{font-family:var(--font-mono);}
+.eyebrow{
+  font-family:var(--font-mono); font-size:.72rem; letter-spacing:.11em; text-transform:uppercase;
+  color:var(--accent-signal); font-weight:600; margin:0 0 .6em;
+}
+.formula{
+  font-family:var(--font-mono); background:var(--surface-2); border:1px solid var(--rule);
+  border-radius:8px; padding:.9em 1.1em; overflow-x:auto; font-size:.92rem; color:var(--ink);
+  line-height:1.7;
+}
+.formula .op{color:var(--accent-signal);}
+.formula .q{color:var(--accent-quant);}
+code{font-family:var(--font-mono); font-size:.9em; background:var(--surface-2); padding:.1em .35em; border-radius:4px;}
+.tag{
+  display:inline-block; font-family:var(--font-mono); font-size:.7rem; letter-spacing:.06em;
+  text-transform:uppercase; padding:.2em .55em; border-radius:5px; border:1px solid var(--rule);
+  color:var(--ink-muted);
+}
+.tag.pedagogical{ color:var(--accent-quant); border-color:var(--accent-quant-soft); background:var(--accent-quant-soft);}
+.tag.paper{ color:var(--accent-signal); border-color:var(--accent-signal-soft); background:var(--accent-signal-soft);}
+
+/* ============================= LAYOUT ============================= */
+.page{ display:grid; grid-template-columns: 250px minmax(0,1fr); max-width:1320px; margin:0 auto; }
+@media (max-width:980px){ .page{ grid-template-columns:1fr; } }
+
+nav.toc{
+  position:sticky; top:0; align-self:start; height:100vh; overflow-y:auto;
+  padding:2rem 1.2rem 2rem 1.6rem; border-right:1px solid var(--rule);
+}
+@media (max-width:980px){
+  nav.toc{ position:static; height:auto; border-right:none; border-bottom:1px solid var(--rule); padding:1rem 1.2rem; }
+  nav.toc .toc-list{ display:none; }
+}
+nav.toc .brand{
+  font-family:var(--font-display); font-weight:600; font-size:1.05rem; margin-bottom:1.6rem;
+  display:flex; align-items:center; gap:.5em;
+}
+nav.toc .brand .mark{ color:var(--accent-signal); font-size:1.2em; }
+.toc-list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.15rem;}
+.toc-list a{
+  display:flex; gap:.6em; align-items:baseline; text-decoration:none; color:var(--ink-muted);
+  font-size:.86rem; padding:.4em .5em; border-radius:6px; border-left:2px solid transparent;
+}
+.toc-list a .n{ font-family:var(--font-mono); font-size:.72rem; color:var(--ink-faint); }
+.toc-list a:hover{ background:var(--surface-2); color:var(--ink); }
+.toc-list a.active{ color:var(--accent-signal); border-left-color:var(--accent-signal); background:var(--accent-signal-soft); }
+.toc-foot{ margin-top:1.5rem; padding-top:1rem; border-top:1px solid var(--rule); font-size:.78rem; color:var(--ink-faint); }
+.theme-toggle{
+  font-family:var(--font-mono); font-size:.72rem; background:var(--surface-2); border:1px solid var(--rule);
+  color:var(--ink-muted); border-radius:6px; padding:.35em .6em; cursor:pointer; margin-top:.8rem;
+}
+.theme-toggle:hover{ color:var(--ink); }
+
+main{ min-width:0; }
+section{ padding:5.5rem clamp(1.3rem,4vw,4.5rem) 0; scroll-margin-top:1rem; }
+section:last-of-type{ padding-bottom:5rem; }
+.section-inner{ max-width:960px; }
+.kicker-row{ display:flex; align-items:center; gap:.8em; margin-bottom:.3em; flex-wrap:wrap; }
+
+.panel{
+  background:var(--surface); border:1px solid var(--rule); border-radius:var(--radius);
+  box-shadow:var(--shadow); padding:1.4rem 1.5rem; margin:1.6rem 0;
+}
+.panel-title{ font-family:var(--font-mono); font-size:.75rem; letter-spacing:.07em; text-transform:uppercase;
+  color:var(--ink-muted); margin-bottom:1rem; display:flex; justify-content:space-between; align-items:center; gap:1em; flex-wrap:wrap;}
+
+.grid-2{ display:grid; grid-template-columns:1fr 1fr; gap:1.4rem; }
+@media (max-width:760px){ .grid-2{ grid-template-columns:1fr; } }
+
+table{ border-collapse:collapse; width:100%; font-size:.88rem; }
+table caption{ caption-side:top; text-align:left; font-family:var(--font-mono); font-size:.75rem; color:var(--ink-muted); margin-bottom:.5em; text-transform:uppercase; letter-spacing:.06em;}
+th,td{ text-align:left; padding:.5em .7em; border-bottom:1px solid var(--rule); font-variant-numeric:tabular-nums; }
+th{ font-family:var(--font-mono); font-weight:600; color:var(--ink-muted); font-size:.76rem; text-transform:uppercase; letter-spacing:.04em;}
+td.num, th.num{ text-align:right; font-family:var(--font-mono); }
+.table-wrap{ overflow-x:auto; }
+
+button.btn{
+  font-family:var(--font-mono); font-size:.8rem; background:var(--surface-2); color:var(--ink);
+  border:1px solid var(--rule); border-radius:7px; padding:.5em .9em; cursor:pointer;
+  transition:background .15s, border-color .15s;
+}
+button.btn:hover{ border-color:var(--accent-signal); }
+button.btn:focus-visible, a:focus-visible, input:focus-visible{ outline:2px solid var(--accent-signal); outline-offset:2px; }
+button.btn.primary{ background:var(--accent-signal); color:#06211e; border-color:var(--accent-signal); font-weight:600;}
+button.btn:disabled{ opacity:.4; cursor:not-allowed; }
+.btn-row{ display:flex; gap:.6em; flex-wrap:wrap; align-items:center; }
+
+.control{ display:flex; flex-direction:column; gap:.35em; font-size:.82rem; color:var(--ink-muted); }
+.control input[type=range]{ accent-color:var(--accent-signal); width:100%; }
+.control select{
+  font-family:var(--font-mono); font-size:.82rem; background:var(--surface-2); color:var(--ink);
+  border:1px solid var(--rule); border-radius:6px; padding:.4em .5em;
+}
+.pillgroup{ display:flex; gap:.4em; flex-wrap:wrap; }
+.pill{
+  font-family:var(--font-mono); font-size:.78rem; padding:.35em .8em; border-radius:20px;
+  border:1px solid var(--rule); background:var(--surface-2); color:var(--ink-muted); cursor:pointer;
+}
+.pill.active{ background:var(--accent-signal-soft); border-color:var(--accent-signal); color:var(--accent-signal); }
+
+.stat{ display:flex; flex-direction:column; gap:.1em; }
+.stat .v{ font-family:var(--font-mono); font-size:1.35rem; font-weight:600; }
+.stat .k{ font-size:.75rem; color:var(--ink-muted); text-transform:uppercase; letter-spacing:.05em; }
+.stat-row{ display:flex; gap:2rem; flex-wrap:wrap; margin:1rem 0; }
+
+.callout{ border-left:3px solid var(--accent-quant); background:var(--accent-quant-soft); border-radius:0 8px 8px 0; padding:.9em 1.1em; font-size:.92rem; margin:1.2rem 0; }
+.callout p:last-child{ margin-bottom:0; }
+.callout.note{ border-left-color:var(--accent-signal); background:var(--accent-signal-soft); }
+
+hr.rule{ border:none; border-top:1px solid var(--rule); margin:2.5rem 0; }
+
+canvas{ display:block; width:100%; }
+svg{ display:block; width:100%; height:auto; overflow:visible; }
+.viz-caption{ font-size:.78rem; color:var(--ink-faint); margin-top:.6rem; font-family:var(--font-mono); }
+
+.bars{ display:flex; align-items:flex-end; gap:6px; height:150px; }
+.bars .bar{ flex:1; border-radius:3px 3px 0 0; position:relative; min-width:6px; transition:height .25s, background .25s; }
+.bars .bar .lbl{ position:absolute; top:-1.3em; left:0; right:0; text-align:center; font-family:var(--font-mono); font-size:.66rem; color:var(--ink-faint); }
+.bars .bar .idx{ position:absolute; bottom:-1.4em; left:0; right:0; text-align:center; font-family:var(--font-mono); font-size:.66rem; color:var(--ink-faint); }
+.bars-wrap{ padding-bottom:1.6em; }
+.bars .bar.evicted{ background-image:repeating-linear-gradient(45deg, var(--bit0), var(--bit0) 4px, transparent 4px, transparent 8px) !important; opacity:.55; }
+
+.legend{ display:flex; gap:1.2em; flex-wrap:wrap; font-size:.78rem; color:var(--ink-muted); margin-top:.6em;}
+.legend .sw{ display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:.4em; vertical-align:middle;}
+
+.step-dots{ display:flex; gap:.4em; margin-bottom:1em; }
+.step-dots .dot{ width:8px; height:8px; border-radius:50%; background:var(--surface-3); }
+.step-dots .dot.on{ background:var(--accent-signal); }
+
+.footer-note{ padding:3rem clamp(1.3rem,4vw,4.5rem) 4rem; color:var(--ink-faint); font-size:.85rem; }
+.footer-note a{ color:var(--ink-muted); }
+ul.src-list{ padding-left:1.1em; }
+ul.src-list li{ margin-bottom:.4em; }
+
+.zone-row{ display:flex; gap:2px; height:64px; border-radius:6px; overflow:hidden; border:1px solid var(--rule); }
+.zone-cell{ flex:1; display:flex; align-items:center; justify-content:center; font-family:var(--font-mono); font-size:.68rem; color:#06211e; min-width:4px; }
+.zone-label{ font-family:var(--font-mono); font-size:.72rem; color:var(--ink-muted); margin-top:.5em; display:flex; justify-content:space-between; }
+</style>
+
+<div class="page">
+  <nav class="toc">
+    <div class="brand"><span class="mark">&#9707;</span> RDKV Primer</div>
+    <ul class="toc-list" id="tocList">
+      <li><a href="#why"><span class="n">00</span> One curve, not two knobs</a></li>
+      <li><a href="#setup"><span class="n">01</span> Setup &amp; notation</a></li>
+      <li><a href="#v-weight"><span class="n">02</span> Token weight &mdash; V cache</a></li>
+      <li><a href="#k-weight"><span class="n">03</span> Channel weight &mdash; K cache</a></li>
+      <li><a href="#bennett"><span class="n">04</span> Quantization hardness</a></li>
+      <li><a href="#waterfilling"><span class="n">05</span> Reverse water-filling</a></li>
+      <li><a href="#mckp"><span class="n">06</span> Discrete MCKP</a></li>
+      <li><a href="#pipeline"><span class="n">07</span> Three-stage pipeline</a></li>
+      <li><a href="#trizone"><span class="n">08</span> TriZone packed decode</a></li>
+      <li><a href="#algorithm"><span class="n">09</span> Algorithm 1 &amp; 2</a></li>
+      <li><a href="#worked"><span class="n">10</span> Worked example</a></li>
+      <li><a href="#results"><span class="n">11</span> Headline results</a></li>
+      <li><a href="#sources"><span class="n">12</span> Sources</a></li>
+    </ul>
+    <div class="toc-foot">
+      Read top to bottom &mdash; every section builds on the last.
+      <button class="theme-toggle" id="themeToggle" type="button">Toggle theme</button>
+    </div>
+  </nav>
+
+  <main>
+    <section class="hero" id="top" style="padding-top:3.6rem;">
+      <div class="section-inner">
+        <div class="eyebrow">An interactive reading of one arXiv paper</div>
+        <h1 style="font-size:clamp(2.1rem,4vw,3.1rem); line-height:1.08; max-width:16ch;">RDKV: eviction and quantization are the same knob, turned to different depths</h1>
+        <p class="lede" style="font-size:1.1rem; color:var(--ink-muted); max-width:58ch;">Every KV-cache compression method before this one picks a token/channel importance
+        score, then <em>separately</em> decides whether to drop it (eviction) or shrink it (quantization).
+        RDKV notices that both are the same operation &mdash; assigning a bit-width &mdash; just evaluated
+        at different points on one curve. Zero bits <em>is</em> eviction. A reverse water-filling argument
+        then tells you, in closed form, exactly which bit-width every token and channel should get under
+        a fixed budget.</p>
+        <div class="hero-meta" style="display:flex; gap:1.6rem; flex-wrap:wrap; margin-top:1.6rem; font-family:var(--font-mono); font-size:.78rem; color:var(--ink-faint);">
+          <span>arXiv:2605.08317 &middot; RDKV</span>
+          <span>Rate-Distortion Bit Allocation for Joint Eviction and Quantization of the KV Cache</span>
+        </div>
+      </div>
+      <div class="panel" style="margin-top:2.2rem;">
+        <div class="panel-title">
+          <span>Live &mdash; Theorem 3.3's exact formula, applied to 12 illustrative tokens</span>
+          <span class="mono" id="heroBudgetLbl" style="color:var(--ink-faint);">budget</span>
+        </div>
+        <div class="bars-wrap"><div class="bars" id="heroBars"></div></div>
+        <div class="control" style="max-width:420px;">
+          <label for="heroBudget">total bit budget &sum;<sub>u</sub> b<sub>u</sub> &le; B</label>
+          <input type="range" id="heroBudget" min="2" max="60" step="0.5" value="24">
+        </div>
+        <p class="viz-caption">Tightening the slider raises &lambda; and pushes low-weight bars past the
+        zero-rate boundary (hatched = evicted). Loosening it promotes them back to low-bit retention.
+        Same units, same formula, no separate "evict vs quantize" branch anywhere in this code.</p>
+      </div>
+    </section>
+
+    <section id="why">
+      <div class="section-inner">
+        <div class="eyebrow">00 &middot; The reframing</div>
+        <h2>Prior work treats eviction and quantization as two separate techniques</h2>
+        <p>Decode in a KV-cache-served LLM is memory-bandwidth-bound: the whole cache is re-read from HBM
+        every step, so throughput is a near-linear function of how much cache fits in memory. Two families
+        of methods shrink it. <strong>Eviction</strong> (H2O, SnapKV, StreamingLLM) picks an importance score
+        and keeps only the top-k tokens &mdash; a binary keep/drop decision. <strong>Quantization</strong>
+        (KIVI, ZipCache) keeps every token but represents it with fewer bits. Hybrid methods
+        (SnapKV+ZipCache) run eviction first, then quantize whatever survives &mdash; two independent stages
+        with a hand-tuned split between them.</p>
+        <div class="callout">
+          <p><strong>RDKV's core move:</strong> stop treating "keep at full precision," "keep at low
+          precision," and "drop entirely" as three different mechanisms. They're one mechanism &mdash;
+          assign a bit-width <code>b<sub>u</sub> &isin; {0, 2, 4, 8, 16}</code> to each cache unit &mdash;
+          evaluated at different points. <code>b<sub>u</sub>=0</code> is eviction. <code>b<sub>u</sub>=16</code>
+          is full-precision retention. Everything between is quantization. One optimization problem, one
+          budget, one allocation curve.</p>
+        </div>
+        <p>The rest of this page follows the paper's own derivation order: quantify what removing a token
+        or channel costs (&sect;01&ndash;03), quantify what quantizing it costs (&sect;04), combine both into
+        one rate-distortion objective and solve it in closed form (&sect;05), discretize it for real hardware
+        bit-widths (&sect;06), then run the whole thing as a three-stage pipeline once after prefill
+        (&sect;07&ndash;09).</p>
+      </div>
+    </section>
+
+    <section id="setup">
+      <div class="section-inner">
+        <div class="eyebrow">01 &middot; Notation</div>
+        <h2>A decoder-only transformer, one layer-head pair at a time</h2>
+        <p>A decoder-only transformer has <code>L</code> layers, <code>H<sub>q</sub></code> query heads,
+        <code>H<sub>kv</sub></code> KV heads (group size <code>g=H<sub>q</sub>/H<sub>kv</sub></code>), and
+        per-head dimension <code>d</code>. For a prefilled context of <code>T</code> tokens, the KV cache
+        per layer is <code>K,V &isin; &#8477;<sup>H<sub>kv</sub>&times;T&times;d</sup></code>, with</p>
+        <div class="formula">a<sub class="op">&tau;,t</sub> = softmax<sub class="op">t</sub>( q<sub class="op">&tau;</sub><sup>&#8868;</sup> k<sub class="op">t</sub> / &radic;d )&nbsp;&nbsp;&nbsp;&nbsp; o<sub class="op">&tau;</sub> = &sum;<sub class="op">t</sub> a<sub class="op">&tau;,t</sub> v<sub class="op">t</sub></div>
+        <p>Every cache unit <code>u</code> &mdash; a token in the V cache, or a channel in the K cache &mdash;
+        gets assigned a bit-width <code>b<sub>u</sub> &isin; &Bopf; = {0, 2, 4, 8, 16}</code>, from outright
+        removal to full FP16 retention, subject to a total bit budget <code>B</code>. The goal: find
+        <code>{b<sub>u</sub>*}</code> minimizing the distortion this induces in the attention computation.
+        Everything from here derives one weight per unit, then one shared allocation rule.</p>
+      </div>
+    </section>
+
+    <section id="v-weight">
+      <div class="section-inner">
+        <div class="eyebrow">02 &middot; &sect;3.1, Prop. 3.1</div>
+        <h2>Evicting a V-cache token perturbs the attention distribution &mdash; by exactly its own weight</h2>
+        <p>Each token enters the output as one weighted term <code>a<sub>&tau;,t</sub> v<sub>t</sub></code>.
+        Evicting token <code>t</code> zeroes its logit; softmax automatically renormalizes the rest:</p>
+        <div class="formula">â<sub class="op">&tau;,t</sub> = 0, &nbsp;&nbsp;&nbsp; â<sub class="op">&tau;,t&prime;</sub> = a<sub class="op">&tau;,t&prime;</sub> / (1 &minus; a<sub class="op">&tau;,t</sub>) &nbsp;&nbsp; for t&prime; &ne; t &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:var(--ink-faint);">&mdash; Eq. (1)</span></div>
+        <p>Measuring the change with total-variation distance between <code>a<sub>&tau;</sub></code> and
+        <code>â<sub>&tau;</sub></code> collapses to something clean:</p>
+        <div class="panel">
+          <div class="panel-title"><span>Proposition 3.1 &mdash; token weight in V cache</span><span class="tag paper">verbatim from the paper</span></div>
+          <div class="formula">&#8214;a<sub class="op">&tau;</sub> &minus; â<sub class="op">&tau;</sub>&#8214;<sub class="op">TV</sub> = a<sub class="op">&tau;,t</sub>&nbsp;&nbsp;&nbsp; for each query &tau;.</div>
+          <div class="formula">w<sub class="op">t</sub> := &sum;<sub class="op">&tau;</sub> a<sub class="op">&tau;,t</sub>. &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:var(--ink-faint);">&mdash; Eq. (2)</span></div>
+        </div>
+        <p><code>w<sub>t</sub></code> is just cumulative attention &mdash; the same score H2O and SnapKV
+        already use to rank tokens for binary keep/evict. RDKV's twist: here it's not a ranking score, it's
+        a <em>multiplicative coefficient</em> in an objective function. Its magnitude, not just its rank,
+        determines the bit-width. And because the attention computation is linear, the same coefficient also
+        governs the cost of <em>quantizing</em> (not just evicting) that token: quantization noise
+        <code>&delta;v<sub>t</sub></code> propagates to the output as <code>&delta;o<sub>&tau;</sub> =
+        a<sub>&tau;,t</sub>&middot;&delta;v<sub>t</sub></code>, scaling with the exact same <code>w<sub>t</sub></code>.
+        That's what unifies eviction and quantization under one weight.</p>
+      </div>
+    </section>
+
+    <section id="k-weight">
+      <div class="section-inner">
+        <div class="eyebrow">03 &middot; &sect;3.1, Prop. 3.2</div>
+        <h2>Zeroing a K-cache channel is a rank-one perturbation to every logit at once</h2>
+        <p>The K cache uses a different compression unit: persistent per-channel outliers make the
+        <em>channel</em> (not the token) the natural thing to prune. Channel <code>c</code> holds the
+        <code>T</code> scalars <code>{k<sub>t,c</sub>}<sub>t=1</sub><sup>T</sup></code>. Since every logit is
+        an inner product <code>q<sub>&tau;</sub><sup>&#8868;</sup>k<sub>t</sub>/&radic;d</code>, zeroing
+        channel <code>c</code> removes that one coordinate's contribution from <em>every</em> logit
+        simultaneously:</p>
+        <div class="formula">&delta;Z = &minus;(1/&radic;d) &middot; Q[:,c] &middot; K[:,c]<sup>&#8868;</sup>&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:var(--ink-faint);">&mdash; Eq. (3)</span></div>
+        <p>This is a rank-one outer product; its spectral norm gives the per-channel weight:</p>
+        <div class="panel">
+          <div class="panel-title"><span>Proposition 3.2 &mdash; channel weight in K cache</span><span class="tag paper">verbatim from the paper</span></div>
+          <div class="formula">w<sub class="op">c</sub> := (1/&radic;d) &middot; &#8214;Q[:,c]&#8214;<sub class="op">2</sub> &middot; &#8214;K[:,c]&#8214;<sub class="op">2</sub>. &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:var(--ink-faint);">&mdash; Eq. (4)</span></div>
+        </div>
+        <p>Channels whose Q- and K-columns are both large drive the logits strongly and are expensive to
+        remove. (This weight coincides with what ThinK derives independently via Frobenius minimization
+        &mdash; the paper notes this explicitly.) As with <code>w<sub>t</sub></code>, quantizing rather than
+        zeroing a channel produces a logit perturbation that scales with the same <code>w<sub>c</sub></code>,
+        so it too serves as the cost coefficient for both regimes.</p>
+      </div>
+    </section>
+
+    <section id="bennett">
+      <div class="section-inner">
+        <div class="eyebrow">04 &middot; &sect;3.1, Bennett's approximation</div>
+        <h2>How many bits does a given distortion weight actually buy?</h2>
+        <p><code>w<sub>t</sub></code> and <code>w<sub>c</sub></code> answer "how much does this unit matter."
+        The other half of the objective is "how hard is this unit to compress" &mdash; its <em>quantization
+        hardness</em>. Under Bennett's high-rate approximation, a uniform scalar quantizer with per-unit
+        dynamic range <code>R<sub>u</sub></code> achieves per-coordinate RMS error <code>&sigma;<sub>u</sub>
+        &middot; 2<sup>&minus;b</sup></code> with:</p>
+        <div class="formula">&sigma;<sub class="op">u</sub> := R<sub class="op">u</sub> / (2&radic;3)</div>
+        <p>Multiplying the two together &mdash; how much a unit matters, times how much noise a given
+        bit-width leaves behind &mdash; gives the full rate-distortion objective:</p>
+        <div class="panel">
+          <div class="panel-title"><span>Eq. (5) &mdash; the rate-distortion objective</span><span class="tag paper">verbatim from the paper</span></div>
+          <div class="formula">&Delta;&Dopf;({b<sub class="op">u</sub>}) = &sum;<sub class="op">u</sub> w<sub class="op">u</sub> &sigma;<sub class="op">u</sub> 2<sup>&minus;b<sub class="op">u</sub></sup>, &nbsp;&nbsp; s.t. &sum;<sub class="op">u</sub> b<sub class="op">u</sub> &le; B.</div>
+        </div>
+        <p>The coefficient <code>w<sub>u</sub>&sigma;<sub>u</sub></code> is what actually gets ranked in the
+        next section &mdash; not <code>w<sub>u</sub></code> alone. A high-attention token that happens to be
+        easy to quantize (small dynamic range) can rationally get fewer bits than a lower-attention token
+        that's hard to quantize (large dynamic range).</p>
+      </div>
+    </section>
+
+    <section id="waterfilling">
+      <div class="section-inner">
+        <div class="eyebrow">05 &middot; &sect;3.1, Theorem 3.3</div>
+        <h2>The Lagrangian solution is reverse water-filling &mdash; in closed form</h2>
+        <p>Minimizing Eq. (5) subject to <code>b<sub>u</sub> &ge; 0</code> has an exact closed-form
+        minimizer:</p>
+        <div class="panel">
+          <div class="panel-title"><span>Theorem 3.3 &mdash; optimal bit allocation</span><span class="tag paper">verbatim from the paper</span></div>
+          <div class="formula" style="font-size:1.05rem;">b<sub class="op">u</sub>* = &lsqb; log<sub class="op">2</sub>( ln2 &middot; w<sub class="op">u</sub> &sigma;<sub class="op">u</sub> / &lambda; ) &rsqb;<sub class="op">+</sub></div>
+          <p style="margin-top:1rem; margin-bottom:0;">with <code>&lambda;&gt;0</code> chosen so the budget
+          binds. The water level <code>&lambda;/ln2</code> induces a hard phase transition: units with
+          <code>w<sub>u</sub>&sigma;<sub>u</sub> &lt; &lambda;/ln2</code> get <code>b<sub>u</sub>*=0</code>
+          &mdash; eviction falls straight out of the same formula that assigns quantization bit-widths to
+          everything else. Tightening <code>B</code> raises <code>&lambda;</code> and pushes more units past
+          the boundary into eviction; loosening it promotes evicted units back to low-bit retention.</p>
+        </div>
+        <div class="panel">
+          <div class="panel-title">
+            <span>Live &mdash; Theorem 3.3 applied to 8 illustrative tokens (V cache)</span>
+            <span class="mono" id="wfLambdaLbl" style="color:var(--ink-faint);">&lambda;/ln2 = &mdash;</span>
+          </div>
+          <div class="bars-wrap"><div class="bars" id="wfBars"></div></div>
+          <div class="control" style="max-width:420px;">
+            <label for="wfBudget">budget &sum;<sub>t</sub> b<sub>t</sub> &le; B, currently <span id="wfBudgetVal">10</span></label>
+            <input type="range" id="wfBudget" min="0.5" max="30" step="0.5" value="10">
+          </div>
+          <p class="viz-caption">Bar height = continuous <code>b<sub>t</sub>*</code> (not yet snapped to
+          hardware bit-widths &mdash; that's &sect;06). The dashed line marks <code>&lambda;/ln2</code>: any
+          <code>w<sub>t</sub>&sigma;<sub>t</sub></code> under it is evicted (hatched). This is the exact
+          formula above, solved by bisecting on &lambda; until the budget binds &mdash; not a discretized or
+          simplified version.</p>
+        </div>
+        <p>This is the paper's central claim made concrete: there is no separate "eviction module" and
+        "quantization module." One threshold, sliding with the budget, produces both.</p>
+      </div>
+    </section>
+
+    <section id="mckp">
+      <div class="section-inner">
+        <div class="eyebrow">06 &middot; &sect;3.1, Eq. 6 &amp; Appendix C, Algorithm 2</div>
+        <h2>Real hardware only speaks {0, 2, 4, 8, 16} &mdash; solve the discrete version</h2>
+        <p>Theorem 3.3 gives a real-valued <code>b<sub>u</sub>*</code>, but GPU kernels need one of a fixed
+        set of bit-widths. The paper replaces Bennett's smooth curve with an empirically calibrated
+        per-coordinate distortion table <code>&epsilon;<sub>u</sub>(b)</code> (measured offline on LongBench
+        prefill sequences, including <code>b=0</code> for outright removal &mdash; Appendix B), and solves
+        the resulting multiple-choice knapsack problem:</p>
+        <div class="panel">
+          <div class="panel-title"><span>Eq. (6) &mdash; discrete MCKP</span><span class="tag paper">verbatim from the paper</span></div>
+          <div class="formula">{b<sub class="op">u</sub>*} = argmin<sub class="op">b<sub class="op">u</sub>&isin;&Bopf;</sub> &sum;<sub class="op">u</sub> w<sub class="op">u</sub> &epsilon;<sub class="op">u</sub>(b<sub class="op">u</sub>) &nbsp;&nbsp; s.t. &sum;<sub class="op">u</sub> b<sub class="op">u</sub> &le; B.</div>
+        </div>
+        <p>Lagrangian relaxation decouples this into independent per-unit table lookups. One-dimensional
+        bisection on <code>&lambda;</code> recovers a feasible allocation in <code>O(U|&Bopf;|)</code> time
+        &mdash; negligible next to prefill. This is <strong>Algorithm 2</strong> (full pseudocode in
+        &sect;09), reproduced here exactly:</p>
+        <div class="callout note">
+          <p><strong>One disclosed substitution:</strong> the paper's <code>&epsilon;<sub>u</sub>(b)</code>
+          is an empirical table calibrated on real LongBench prefill activations &mdash; data this static page
+          doesn't have. The demo below uses the analytic Bennett curve from &sect;04,
+          <code>&epsilon;<sub>u</sub>(b) = &sigma;<sub>u</sub>&middot;2<sup>&minus;b</sup></code>, evaluated
+          at the five hardware bit-widths, as the closest reproducible stand-in &mdash; the same curve
+          Theorem 3.3 is derived from. Everything else &mdash; the bisection loop, the
+          <code>&lambda;<sub>lo</sub>=0, &lambda;<sub>hi</sub>=max<sub>u</sub>w<sub>u</sub></code>
+          initialization, the <code>10<sup>&minus;2</sup></code> relative tolerance, the 64-iteration cap
+          &mdash; is Algorithm 2, verbatim.</p>
+        </div>
+        <div class="panel">
+          <div class="panel-title">
+            <span>Live &mdash; Algorithm 2, run to convergence on the same 8 tokens</span>
+            <span class="mono" id="mckpIterLbl" style="color:var(--ink-faint);">&mdash;</span>
+          </div>
+          <div class="bars-wrap"><div class="bars" id="mckpBars"></div></div>
+          <div class="control" style="max-width:420px;">
+            <label for="mckpBudget">target average bit-width b&#772;, currently <span id="mckpBudgetVal">1.25</span></label>
+            <input type="range" id="mckpBudget" min="0" max="16" step="0.25" value="1.25">
+          </div>
+          <div class="table-wrap" style="margin-top:1rem;">
+            <table>
+              <caption>Bisection trace (Algorithm 2, lines 4&ndash;17)</caption>
+              <thead><tr><th>iter</th><th class="num">&lambda;<sub>lo</sub></th><th class="num">&lambda;<sub>hi</sub></th><th class="num">&lambda;</th><th class="num">mean b</th><th>status</th></tr></thead>
+              <tbody id="mckpTrace"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="pipeline">
+      <div class="section-inner">
+        <div class="eyebrow">07 &middot; &sect;3.2, Fig. 2</div>
+        <h2>Three stages, run once per layer-head pair, right after prefill</h2>
+        <p>Under an FP16 reference, a per-head budget of <code>B<sub>tok</sub></code> tokens corresponds to
+        <code>B<sub>head</sub> = 2&middot;B<sub>tok</sub>&middot;d&middot;16</code> total bits, split equally
+        between V and K: <code>B<sub>V</sub>=B<sub>K</sub>=&frac12;B<sub>head</sub></code>. The pipeline
+        (illustrated in the paper for 8 tokens and 8 channels, reproduced at that same size below):</p>
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-title"><span>Stage 1 &mdash; weighting</span></div>
+            <p style="margin:0;">From the prefill forward pass, compute <code>w<sub>t</sub></code> (Prop. 3.1)
+            from the attention matrix and <code>w<sub>c</sub></code> (Prop. 3.2) from Q/K column norms.
+            Both come from the uncompressed cache, computed once &mdash; no value vectors or output residuals
+            needed.</p>
+          </div>
+          <div class="panel">
+            <div class="panel-title"><span>Stage 2 &mdash; V token allocation</span></div>
+            <p style="margin:0;">Each token holds <code>d</code> scalars, so <code>B<sub>V</sub></code>
+            becomes <code>B&#772;<sub>V</sub> := B<sub>V</sub>/d</code> in summed-bit-width units. MCKP
+            (Eq. 6) on <code>w<sub>t</sub></code> determines <code>&Tscr;<sub>kept</sub> := {t : b<sub>t</sub><sup>V</sup>&gt;0}</code>.
+            Evicted tokens are gone entirely.</p>
+          </div>
+          <div class="panel" style="grid-column:1/-1;">
+            <div class="panel-title"><span>Stage 3 &mdash; K channel allocation, on kept tokens only</span></div>
+            <p style="margin:0;">The K budget <code>B<sub>K</sub></code> is spent only across
+            <code>&Tscr;<sub>kept</sub></code> &mdash; each channel now holds <code>|&Tscr;<sub>kept</sub>|</code>
+            scalars, so <code>B&#772;<sub>K</sub> := B<sub>K</sub>/|&Tscr;<sub>kept</sub>|</code>. MCKP runs
+            again, this time on <code>w<sub>c</sub></code> (reused unchanged from Stage 1 &mdash; no second
+            forward pass). <strong>V is allocated before K</strong> precisely so K's shrunken denominator
+            reflects who actually survived eviction; reversing the order would waste K budget on
+            soon-to-be-evicted tokens.</p>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-title">
+            <span>Live &mdash; the full Stage 1&rarr;2&rarr;3 pipeline, T=8 tokens &times; d=8 channels (matches Fig. 2's scale)</span>
+          </div>
+          <p style="margin-bottom:.4em; font-size:.85rem; color:var(--ink-muted);">V cache &mdash; Stage 2 (token allocation)</p>
+          <div class="bars-wrap"><div class="bars" id="pipeVBars"></div></div>
+          <p style="margin:1.4em 0 .4em; font-size:.85rem; color:var(--ink-muted);">K cache &mdash; Stage 3 (channel allocation, budget rescaled by |&Tscr;<sub>kept</sub>|)</p>
+          <div class="bars-wrap"><div class="bars" id="pipeKBars"></div></div>
+          <div class="control" style="max-width:420px; margin-top:.6rem;">
+            <label for="pipeBtok">per-head budget B<sub>tok</sub> (FP16-equivalent tokens), currently <span id="pipeBtokVal">3</span></label>
+            <input type="range" id="pipeBtok" min="0.5" max="8" step="0.25" value="3">
+          </div>
+          <div class="legend" id="pipeLegend"></div>
+          <p class="viz-caption" id="pipeStats"></p>
+        </div>
+      </div>
+    </section>
+
+    <section id="trizone">
+      <div class="section-inner">
+        <div class="eyebrow">08 &middot; &sect;3.3, Fig. 3, Eq. 7</div>
+        <h2>A mixed-bit allocation only helps if the cache stays packed in HBM</h2>
+        <p>If quantized entries were unpacked to FP16 before the attention kernel reads them, peak memory
+        wouldn't move and dequantization would add pure latency. The pipeline output has to stay packed
+        while dequantization fuses <em>into</em> the attention kernel. The obstacle: tokens within one head
+        now carry different bit-widths, but GPU kernels want uniform-precision segments. RDKV's answer is
+        three storage zones per <code>(&ell;,h)</code> pair, each with one uniform dequantization path:</p>
+        <div class="panel">
+          <div class="panel-title"><span>TriZone layout, driven by the &sect;07 pipeline's own output above</span></div>
+          <div class="zone-row" id="zoneRow"></div>
+          <div class="zone-label"><span>Zone A &mdash; packed, quantized (old cache)</span><span>Zone B &mdash; FP16, retained</span><span>Zone C &mdash; FP16, new decode tokens</span></div>
+          <p class="viz-caption">Zone A: retained K rows from <code>&Tscr;<sub>kept</sub></code> plus V rows
+          with <code>b<sub>t</sub><sup>V</sup>&isin;{2,4,8}</code>, grouped into uniform-bit sub-segments.
+          Zone B: V rows with <code>b<sub>t</sub><sup>V</sup>=16</code> &mdash; their K rows still live in
+          Zone A, since K bit-widths follow the independent per-channel allocation, not
+          <code>b<sup>V</sup></code>. Zone C: newly generated tokens, growing by one entry per decode step.</p>
+        </div>
+        <p>At each decode step the query attends over both zones at once &mdash; quantized old K
+        concatenated with FP16 new K &mdash; and the output splits into three value sources matching the
+        three zones:</p>
+        <div class="panel">
+          <div class="panel-title"><span>Eq. (7) &mdash; packed-decode output decomposition</span><span class="tag paper">verbatim from the paper</span></div>
+          <div class="formula" style="line-height:1.9; font-size:.86rem;">o<sub class="op">&tau;</sub> = &sum;<sub class="op">t&isin;&Tscr;<sub class="op">kept</sub>\&Tscr;<sub class="op">V16</sub></sub> a<sub class="op">&tau;,t</sub>&middot;v&#770;<sub class="op">t</sub> &nbsp;<span style="color:var(--ink-faint);">(Zone A, quantized V)</span><br>&nbsp;&nbsp;&nbsp;&nbsp;+ &sum;<sub class="op">t&isin;&Tscr;<sub class="op">V16</sub></sub> a<sub class="op">&tau;,t</sub>&middot;v<sub class="op">t</sub> &nbsp;<span style="color:var(--ink-faint);">(Zone B, FP16 retained)</span><br>&nbsp;&nbsp;&nbsp;&nbsp;+ &sum;<sub class="op">t&isin;&Tscr;<sub class="op">new</sub></sub> a<sub class="op">&tau;,t</sub>&middot;v<sub class="op">t</sub> &nbsp;<span style="color:var(--ink-faint);">(Zone C, FP16 new)</span></div>
+        </div>
+        <p>K-cache dequantization is fused algebraically rather than materialized: per-channel quantization
+        stores <code>k&#770;<sub>t,c</sub> = s<sub>c</sub>(k&#771;<sub>t,c</sub> &minus; z<sub>c</sub>)</code>,
+        so the kernel rewrites <code>q<sub>&tau;</sub><sup>&#8868;</sup>k&#770;<sub>t</sub></code> as a sum
+        over <code>(s<sub>c</sub>q<sub>&tau;,c</sub>)&middot;k&#771;<sub>t,c</sub></code> minus one
+        per-query-head bias subtracted once &mdash; never writing a dequantized FP16 tile back to memory at
+        all.</p>
+      </div>
+    </section>
+
+    <section id="algorithm">
+      <div class="section-inner">
+        <div class="eyebrow">09 &middot; Appendix C</div>
+        <h2>Algorithm 1 &amp; 2, in full</h2>
+        <div class="panel">
+          <div class="panel-title"><span>Algorithm 1 &mdash; RDKV: Rate-Distortion KV Cache Compression</span><span class="tag paper">verbatim pseudocode structure</span></div>
+          <div class="formula" style="line-height:1.85; font-size:.82rem;">
+Input: prefill cache K<sup>(&#8467;)</sup>,V<sup>(&#8467;)</sup> per layer &#8467;; per-head budget B<sub class="op">head</sub>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;observation window S<sub class="op">w</sub>; pooling kernel w; bit-width set &Bopf;={0,2,4,8,16};<br>
+&nbsp;&nbsp;&nbsp;&nbsp;empirical distortion tables &epsilon;<sup class="op">K</sup>(b), &epsilon;<sup class="op">V</sup>(b)<br>
+Output: TriZone packed cache for each (&#8467;,h)<br>
+<br>
+for each layer &#8467; = 1,&hellip;,L do<br>
+&nbsp;&nbsp;<span style="color:var(--ink-faint);"># Stage 1: weight computation</span><br>
+&nbsp;&nbsp;A &larr; Softmax( Q<sub class="op">[&tau;&minus;S<sub class="op">w</sub>:&tau;]</sub><sup>(&#8467;)</sup> K<sup>(&#8467;)&#8868;</sup> / &radic;d )<br>
+&nbsp;&nbsp;for each KV head h = 1,&hellip;,H<sub class="op">kv</sub> do<br>
+&nbsp;&nbsp;&nbsp;&nbsp;w<sub class="op">t</sub><sup>(h)</sup> &larr; &sum;<sub class="op">&tau;,g</sub> a<sub class="op">&tau;,g,t</sub><sup>(h)</sup> for all t &nbsp;&nbsp;<span style="color:var(--ink-faint);">&#8227; V-cache token weight</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;w<sub class="op">t</sub><sup>(h)</sup> &larr; AvgPool1d(w<sub class="op">t</sub><sup>(h)</sup>, w)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;w<sub class="op">c</sub><sup>(h)</sup> &larr; (1/&radic;d)&middot;&#8214;Q<sub class="op">:,c</sub><sup>(h)</sup>&#8214;<sub class="op">2</sub>&middot;&#8214;K<sub class="op">:,c</sub><sup>(h)</sup>&#8214;<sub class="op">2</sub> for all c &nbsp;&nbsp;<span style="color:var(--ink-faint);">&#8227; K-cache channel weight</span><br>
+&nbsp;&nbsp;end for<br>
+&nbsp;&nbsp;<span style="color:var(--ink-faint);"># Stage 2: V-side token allocation (per head)</span><br>
+&nbsp;&nbsp;B<sup class="op">V</sup> &larr; &frac12;B<sub class="op">head</sub>; &nbsp; B&#772;<sup class="op">V</sup> &larr; B<sup class="op">V</sup>/d<br>
+&nbsp;&nbsp;for each KV head h do<br>
+&nbsp;&nbsp;&nbsp;&nbsp;{b<sub class="op">t</sub><sup>V</sup>}<sub class="op">h</sub> &larr; MCKP( w<sub class="op">t</sub><sup>(h)</sup>, &epsilon;<sup class="op">V</sup>, B&#772;<sup class="op">V</sup>/T )<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&Tscr;<sub class="op">kept</sub><sup>(h)</sup> &larr; {t : b<sub class="op">t</sub><sup>V</sup>&gt;0}<br>
+&nbsp;&nbsp;end for<br>
+&nbsp;&nbsp;<span style="color:var(--ink-faint);"># Stage 3: K-side channel allocation (per head)</span><br>
+&nbsp;&nbsp;B<sup class="op">K</sup> &larr; &frac12;B<sub class="op">head</sub><br>
+&nbsp;&nbsp;for each KV head h do<br>
+&nbsp;&nbsp;&nbsp;&nbsp;k<sub class="op">avg</sub><sup>(h)</sup> &larr; B<sup class="op">K</sup> / ( |&Tscr;<sub class="op">kept</sub><sup>(h)</sup>| &middot; d )<br>
+&nbsp;&nbsp;&nbsp;&nbsp;{b<sub class="op">c</sub><sup>K</sup>}<sub class="op">h</sub> &larr; MCKP( w<sub class="op">c</sub><sup>(h)</sup>, &epsilon;<sup class="op">K</sup>, k<sub class="op">avg</sub><sup>(h)</sup> )<br>
+&nbsp;&nbsp;end for<br>
+&nbsp;&nbsp;<span style="color:var(--ink-faint);"># Stage 4: TriZone packing</span><br>
+&nbsp;&nbsp;for each KV head h do<br>
+&nbsp;&nbsp;&nbsp;&nbsp;sort &Tscr;<sub class="op">kept</sub><sup>(h)</sup> by b<sub class="op">t</sub><sup>V</sup> into sub-segments &Sscr;<sub class="op">2</sub>,&Sscr;<sub class="op">4</sub>,&Sscr;<sub class="op">8</sub><br>
+&nbsp;&nbsp;&nbsp;&nbsp;sort channels by b<sub class="op">c</sub><sup>K</sup> into segments; permute q to match<br>
+&nbsp;&nbsp;&nbsp;&nbsp;quantize + byte-pack V sub-segments &rarr; Zone A(V); K rows of &Tscr;<sub class="op">kept</sub><sup>(h)</sup> &rarr; Zone A(K)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;store {t : b<sub class="op">t</sub><sup>V</sup>=16} V rows in FP16 &rarr; Zone B<br>
+&nbsp;&nbsp;end for<br>
+end for
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-title"><span>Algorithm 2 &mdash; MCKP: Lagrangian Bisection Knapsack Solver</span><span class="tag paper">verbatim, and implemented exactly in &sect;06 above</span></div>
+          <div class="formula" style="line-height:1.9; font-size:.86rem;">
+Input: weights {w<sub class="op">u</sub>}; distortion table &epsilon;(b); target avg. bits b&#772;;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;bit-width set &Bopf;; tolerance &delta;; max iterations I<br>
+Output: bit-width assignment {b<sub class="op">u</sub>*}<br>
+<br>
+&lambda;<sub class="op">lo</sub> &larr; 0; &nbsp; &lambda;<sub class="op">hi</sub> &larr; max<sub class="op">u</sub> w<sub class="op">u</sub><br>
+for i = 1,&hellip;,I do<br>
+&nbsp;&nbsp;&lambda; &larr; (&lambda;<sub class="op">lo</sub> + &lambda;<sub class="op">hi</sub>) / 2<br>
+&nbsp;&nbsp;for each unit u do<br>
+&nbsp;&nbsp;&nbsp;&nbsp;b<sub class="op">u</sub>* &larr; argmin<sub class="op">b&isin;&Bopf;</sub> &nbsp; w<sub class="op">u</sub>&middot;&epsilon;(b) + &lambda;&middot;b<br>
+&nbsp;&nbsp;end for<br>
+&nbsp;&nbsp;b&#772;<sub class="op">cur</sub> &larr; mean({b<sub class="op">u</sub>*})<br>
+&nbsp;&nbsp;if |b&#772;<sub class="op">cur</sub> &minus; b&#772;| / b&#772; &lt; &delta; then return {b<sub class="op">u</sub>*}<br>
+&nbsp;&nbsp;else if b&#772;<sub class="op">cur</sub> &gt; b&#772; then &lambda;<sub class="op">lo</sub> &larr; &lambda;<br>
+&nbsp;&nbsp;else &lambda;<sub class="op">hi</sub> &larr; &lambda;<br>
+end for<br>
+return {b<sub class="op">u</sub>*}
+          </div>
+        </div>
+        <p style="margin-top:1rem;">Default calibration (Appendix B): observation window <code>S<sub>w</sub>=32</code>,
+        pooling kernel <code>w=5</code>, K/V split <code>r<sub>K</sub>=&frac12;</code> (ablated and found
+        best across budgets), bisection tolerance <code>10<sup>&minus;2</sup></code>, at most 64 iterations
+        &mdash; every one of these is reproduced exactly as a default in the &sect;06 demo above.</p>
+      </div>
+    </section>
+
+    <section id="worked">
+      <div class="section-inner">
+        <div class="eyebrow">10 &middot; Hand-verifiable example</div>
+        <div class="kicker-row"><h2 style="margin:0;">A single query, 4 tokens, 2 channels</h2><span class="tag pedagogical">constructed for this primer, arithmetic checked by hand</span></div>
+        <p>Take one query <code>&tau;</code> attending to <code>T=4</code> tokens with softmax weights
+        <code>a<sub>&tau;</sub> = [0.5, 0.3, 0.15, 0.05]</code> (with only one query, Eq. 2's sum over
+        <code>&tau;</code> collapses to <code>w<sub>t</sub>=a<sub>&tau;,t</sub></code> directly).</p>
+        <div class="panel">
+          <div class="panel-title"><span>Checking Prop. 3.1 by hand &mdash; evict token 1 (a=0.5)</span></div>
+          <p style="margin:0 0 .6em;">Eq. (1): <code>â = [0, 0.3/0.5, 0.15/0.5, 0.05/0.5] = [0, 0.6, 0.3, 0.1]</code>
+          (renormalized, still sums to 1). Total variation:</p>
+          <div class="formula">&#189;(|0.5&minus;0| + |0.3&minus;0.6| + |0.15&minus;0.3| + |0.05&minus;0.1|) = &#189;(0.5+0.3+0.15+0.05) = &#189;&middot;1.0 = 0.5</div>
+          <p style="margin:.6em 0 0;">Exactly <code>a<sub>&tau;,1</sub> = 0.5</code>, matching Prop. 3.1's claim
+          <code>&#8214;a&minus;â&#8214;<sub>TV</sub> = a<sub>&tau;,t</sub></code> exactly, not approximately.</p>
+        </div>
+        <div class="panel">
+          <div class="panel-title"><span>Channel weight (Prop. 3.2), d=2, T=4, &radic;d=&radic;2&asymp;1.41421</span></div>
+          <p style="margin:0 0 .6em;">Two channels across the 4 token positions:
+          <code>Q[:,1]=[1, 0, 1, 0.5]</code>, <code>K[:,1]=[0.8, 0.6, 0.4, 0.2]</code>,
+          <code>Q[:,2]=[0.3, 0.9, 0.2, 0.1]</code>, <code>K[:,2]=[0.5, 0.5, 0.5, 0.5]</code>.</p>
+          <div class="formula">&#8214;Q[:,1]&#8214;=&radic;2.25=1.5, &#8214;K[:,1]&#8214;=&radic;1.2&asymp;1.0954 &rArr; w<sub class="op">c1</sub> = 1.5&middot;1.0954/1.41421 &asymp; <strong>1.1619</strong><br>&#8214;Q[:,2]&#8214;=&radic;0.95&asymp;0.9747, &#8214;K[:,2]&#8214;=&radic;1.0=1.0 &rArr; w<sub class="op">c2</sub> = 0.9747&middot;1.0/1.41421 &asymp; <strong>0.6893</strong></div>
+        </div>
+        <div class="panel">
+          <div class="panel-title"><span>Theorem 3.3 applied directly &mdash; fix &lambda;/ln2 = 0.1, &sigma;<sub>u</sub>=1</span></div>
+          <p style="margin:0 0 .6em;">Plugging <code>w<sub>t</sub>, w<sub>c</sub></code> straight into
+          <code>b<sub>u</sub>* = [log<sub>2</sub>(w<sub>u</sub>&sigma;<sub>u</sub> / 0.1)]<sub>+</sub></code>:</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>unit</th><th class="num">weight</th><th class="num">w<sub>u</sub>/0.1</th><th class="num">b<sub>u</sub>* (continuous)</th><th>regime</th></tr></thead>
+              <tbody>
+                <tr><td>token 1</td><td class="num">0.500</td><td class="num">5.00</td><td class="num">log&#8322;5 &asymp; 2.322</td><td>quantize</td></tr>
+                <tr><td>token 2</td><td class="num">0.300</td><td class="num">3.00</td><td class="num">log&#8322;3 &asymp; 1.585</td><td>quantize</td></tr>
+                <tr><td>token 3</td><td class="num">0.150</td><td class="num">1.50</td><td class="num">log&#8322;1.5 &asymp; 0.585</td><td>quantize (thin)</td></tr>
+                <tr><td>token 4</td><td class="num">0.050</td><td class="num">0.50</td><td class="num">log&#8322;0.5 = &minus;1 &rarr; 0</td><td><strong>evicted</strong></td></tr>
+                <tr><td>channel 1</td><td class="num">1.1619</td><td class="num">11.62</td><td class="num">log&#8322;11.62 &asymp; 3.539</td><td>quantize</td></tr>
+                <tr><td>channel 2</td><td class="num">0.6893</td><td class="num">6.89</td><td class="num">log&#8322;6.89 &asymp; 2.785</td><td>quantize</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p style="margin-top:.8em;">Token 4 falls below the water level and gets clipped to zero &mdash;
+          the eviction Fig. 2 illustrates for tokens 3 and 6 in its 8-token example, reproduced live at
+          &sect;07. Both channels stay above the line here (channels tend to carry larger weight than
+          low-attention tokens in this construction, so no channel eviction at this particular
+          <code>&lambda;</code>). In the real pipeline, <code>&lambda;</code> isn't picked by hand like
+          this &mdash; it's solved via the Algorithm 2 bisection so the budget binds exactly, as shown live
+          in &sect;06 and &sect;07.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="results">
+      <div class="section-inner">
+        <div class="eyebrow">11 &middot; &sect;4, headline numbers</div>
+        <h2>What the joint allocation buys, from the paper's own experiments</h2>
+        <div class="stat-row">
+          <div class="stat"><div class="v">2.48%</div><div class="k">cache retention</div></div>
+          <div class="stat"><div class="v">97.81%</div><div class="k">of full-cache accuracy, LongBench</div></div>
+          <div class="stat"><div class="v">4.5&times;</div><div class="k">decode speedup vs FlashAttention-2, 128K ctx</div></div>
+          <div class="stat"><div class="v">1.9&times;</div><div class="k">peak memory reduction, 128K ctx</div></div>
+          <div class="stat"><div class="v">+9.1%</div><div class="k">avg. over best baseline (LongBench/RULER/InfiniteBench)</div></div>
+        </div>
+        <p>On LLaMA-3.1-8B-Instruct / LongBench, RDKV reaches <strong>49.47</strong> average at
+        <code>B<sub>total</sub>=1024L</code>, within <strong>0.35</strong> points of uncompressed FullKV
+        (49.82); at the tightest budget <code>B<sub>total</sub>=64L</code> its lead over the strongest
+        binary-eviction baseline widens to <strong>2.7</strong> points. The stated mechanism: binary
+        baselines discard everything below a top-k threshold, while RDKV's larger action space lets
+        borderline tokens keep a low bit-width instead of being dropped outright &mdash; the reverse
+        water-filling curve, not a bigger model or a different score, is the source of the gain.</p>
+        <p style="font-size:.85rem; color:var(--ink-faint);">All numbers transcribed from the paper's
+        abstract and &sect;4.1 (Table 1); see &sect;12 for the source.</p>
+      </div>
+    </section>
+
+    <section id="sources">
+      <div class="section-inner">
+        <div class="eyebrow">12 &middot; Sources &amp; what's exact vs. constructed</div>
+        <h2>Provenance</h2>
+        <ul class="src-list">
+          <li><strong>RDKV</strong> &mdash; Rate-Distortion Bit Allocation for Joint Eviction and
+          Quantization of the KV Cache. <span class="mono">arXiv:2605.08317</span>. Equations (1)&ndash;(7),
+          Propositions 3.1&ndash;3.2, Theorem 3.3, and Algorithms 1&ndash;2 above are transcribed directly
+          from the paper's published LaTeX source (via its arXiv HTML rendering), not paraphrased from a
+          summary.</li>
+        </ul>
+        <div class="callout">
+          <p><strong>Exact to the paper:</strong> every numbered equation, Prop. 3.1/3.2, Theorem 3.3's
+          closed form, the Eq. (6) MCKP formulation, Eq. (7)'s TriZone decomposition, and Algorithms 1&ndash;2
+          (bisection bounds, tolerance, iteration cap, the whole four-stage structure).</p>
+        </div>
+        <div class="callout">
+          <p><strong>Disclosed substitution:</strong> the empirical per-coordinate distortion table
+          <code>&epsilon;<sub>u</sub>(b)</code> (paper: calibrated offline on 32 LongBench prefill sequences
+          per <code>(&#8467;,h)</code> slice, Appendix B) is replaced in every interactive demo by the
+          closed-form Bennett curve <code>&sigma;<sub>u</sub>&middot;2<sup>&minus;b</sup></code> &mdash;
+          the same curve the paper itself derives Theorem 3.3 from, just without offline calibration data
+          this static page can't have. Flagged inline wherever it's used (&sect;06&ndash;07).</p>
+        </div>
+        <div class="callout">
+          <p><strong>Constructed for this primer:</strong> all illustrative numeric values (the 8/12 token
+          weights in the interactive bars, the tiny hand-worked example in &sect;10) &mdash; the paper
+          illustrates its Fig. 2 at the same scale (8 tokens &times; 8 channels) but doesn't publish the
+          underlying numbers, so the demo values here reproduce the qualitative pattern (some low-weight
+          tokens evicted, most retained at reduced precision) rather than literal numbers from the paper.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="footer-note">
+  Built as a companion to <a href="../turbo-quant/turboquant-primer.html">the TurboQuant primer</a> in the
+  same repository &mdash; RDKV generalizes TurboQuant's per-coordinate scalar quantization by adding
+  eviction as the zero-bit endpoint of the same allocation curve.
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ---------- theme toggle ---------- */
+var root=document.documentElement;
+var stored=null;
+try{ stored=localStorage.getItem('rdkv-theme'); }catch(e){}
+if(stored) root.setAttribute('data-theme', stored);
+document.getElementById('themeToggle').addEventListener('click', function(){
+  var cur=root.getAttribute('data-theme');
+  var next = cur==='dark' ? 'light' : (cur==='light' ? null : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'light':'dark'));
+  if(next){ root.setAttribute('data-theme', next); } else { root.removeAttribute('data-theme'); }
+  try{ localStorage.setItem('rdkv-theme', next || ''); }catch(e){}
+});
+function cssVar(name){ return getComputedStyle(root).getPropertyValue(name).trim(); }
+
+/* ---------- TOC active-section tracking ---------- */
+var tocLinks=Array.prototype.slice.call(document.querySelectorAll('.toc-list a'));
+var sections=tocLinks.map(function(a){ return document.querySelector(a.getAttribute('href')); });
+function updateActive(){
+  var y=window.scrollY+120;
+  var idx=0;
+  for(var i=0;i<sections.length;i++){ if(sections[i] && sections[i].offsetTop<=y) idx=i; }
+  tocLinks.forEach(function(a,i){ a.classList.toggle('active', i===idx); });
+}
+window.addEventListener('scroll', updateActive, {passive:true});
+updateActive();
+
+/* ============================================================
+   Core math, implemented exactly as derived in the paper:
+   - Theorem 3.3 (continuous reverse water-filling)
+   - Algorithm 2 (discrete MCKP via Lagrangian bisection)
+   The only disclosed substitution: epsilon_u(b) = sigma_u * 2^-b
+   (Bennett's curve) stands in for the paper's offline-calibrated
+   table, since that calibration data isn't available client-side.
+   ============================================================ */
+
+function bitColor(b){
+  if(b<=0) return cssVar('--bit0');
+  if(b<=2) return cssVar('--bit2');
+  if(b<=4) return cssVar('--bit4');
+  if(b<=8) return cssVar('--bit8');
+  return cssVar('--bit16');
+}
+
+/* Theorem 3.3: b_u*(lambda) = [log2(ln2 * w_u*sigma_u / lambda)]_+ ,
+   lambda solved by bisection so sum(b_u) matches target budget B. */
+function continuousWaterfill(w, sigma, targetB){
+  var n=w.length;
+  function bAt(lambda){
+    var out=new Array(n);
+    for(var i=0;i<n;i++){
+      var v = Math.log2(Math.LN2 * w[i]*sigma[i] / lambda);
+      out[i]=Math.max(0,v);
+    }
+    return out;
+  }
+  function sumAt(lambda){ return bAt(lambda).reduce(function(a,b){return a+b;},0); }
+  var lo=1e-6, hi=1e6;
+  for(var it=0; it<60; it++){
+    var mid=Math.sqrt(lo*hi); /* geometric bisection: lambda spans orders of magnitude */
+    var s=sumAt(mid);
+    if(Math.abs(s-targetB) < 1e-4) { lo=mid; hi=mid; break; }
+    if(s>targetB){ lo=mid; } else { hi=mid; }
+  }
+  var lambda=Math.sqrt(lo*hi);
+  return { b: bAt(lambda), lambda: lambda };
+}
+
+/* Algorithm 2 verbatim: lambda_lo=0, lambda_hi=max(w), bisect until
+   mean(b*) is within relative tolerance of target average b-bar. */
+function mckpBisect(w, sigma, targetBar, opts){
+  opts=opts||{};
+  var Bset=[0,2,4,8,16];
+  var tol = opts.tol!=null ? opts.tol : 0.01;
+  var maxIter = opts.maxIter!=null ? opts.maxIter : 64;
+  function eps(sig,b){ return sig*Math.pow(2,-b); } /* Bennett curve stand-in, see note */
+  var n=w.length;
+  var lamLo=0, lamHi=Math.max.apply(null,w);
+  if(lamHi<=0) lamHi=1;
+  var trace=[];
+  var bStar=new Array(n).fill(0);
+  var lambda=0;
+  for(var it=1; it<=maxIter; it++){
+    lambda=(lamLo+lamHi)/2;
+    var sum=0;
+    for(var u=0;u<n;u++){
+      var best=Infinity, bestB=0;
+      for(var bi=0;bi<Bset.length;bi++){
+        var b=Bset[bi];
+        var cost=w[u]*eps(sigma[u],b) + lambda*b;
+        if(cost<best-1e-12){ best=cost; bestB=b; }
+      }
+      bStar[u]=bestB; sum+=bestB;
+    }
+    var barCur=sum/n;
+    var status='searching';
+    var done=false;
+    if(targetBar<=0){
+      done = barCur<=1e-9;
+      if(done) status='converged';
+    } else if(Math.abs(barCur-targetBar)/targetBar < tol){
+      status='converged'; done=true;
+    }
+    trace.push({it:it, lamLo:lamLo, lamHi:lamHi, lambda:lambda, barCur:barCur, status:status});
+    if(done) break;
+    if(barCur>targetBar){ lamLo=lambda; } else { lamHi=lambda; }
+  }
+  return { b: bStar, trace: trace, lambda: lambda };
+}
+
+function renderBars(containerId, units, bvals, opts){
+  opts=opts||{};
+  var maxB=opts.maxB||16;
+  var el=document.getElementById(containerId);
+  el.innerHTML='';
+  units.forEach(function(u,i){
+    var b=bvals[i];
+    var bar=document.createElement('div');
+    bar.className='bar'+(b<=0?' evicted':'');
+    var hpct=Math.max(3, (Math.min(b,maxB)/maxB)*100);
+    bar.style.height=hpct+'%';
+    if(b>0) bar.style.background=bitColor(b);
+    var lbl=document.createElement('span');
+    lbl.className='lbl';
+    lbl.textContent = b<=0 ? '0' : (Math.round(b*10)/10);
+    bar.appendChild(lbl);
+    var idx=document.createElement('span');
+    idx.className='idx';
+    idx.textContent = (opts.labelPrefix||'')+(i+1);
+    bar.appendChild(idx);
+    el.appendChild(bar);
+  });
+}
+
+/* ---------- Hero: Theorem 3.3 direct, 12 illustrative tokens ---------- */
+var heroW =    [3.1, 2.4, 0.6, 2.8, 1.3, 0.35, 2.1, 1.9, 0.5, 1.6, 0.8, 2.6];
+var heroSigma =[0.9, 1.1, 0.7, 1.0, 0.95, 0.6, 1.05, 0.85, 0.75, 1.0, 0.9, 1.15];
+function renderHero(){
+  var target=parseFloat(document.getElementById('heroBudget').value);
+  var res=continuousWaterfill(heroW, heroSigma, target);
+  renderBars('heroBars', heroW, res.b, {maxB:16});
+  document.getElementById('heroBudgetLbl').textContent =
+    'B = '+target.toFixed(1)+'  •  λ/ln2 ≈ '+(res.lambda/Math.LN2).toFixed(3);
+}
+document.getElementById('heroBudget').addEventListener('input', renderHero);
+renderHero();
+
+/* ---------- Water-filling explorer (Theorem 3.3, continuous), 8 tokens ---------- */
+var wfW =     [0.90, 0.70, 0.15, 0.80, 0.55, 0.12, 0.65, 0.60];
+var wfSigma = [0.80, 1.10, 0.60, 1.30, 0.90, 0.50, 1.00, 0.70];
+function renderWF(){
+  var target=parseFloat(document.getElementById('wfBudget').value);
+  document.getElementById('wfBudgetVal').textContent=target;
+  var res=continuousWaterfill(wfW, wfSigma, target);
+  renderBars('wfBars', wfW, res.b, {maxB:16});
+  document.getElementById('wfLambdaLbl').textContent='λ/ln2 ≈ '+(res.lambda/Math.LN2).toFixed(4);
+}
+document.getElementById('wfBudget').addEventListener('input', renderWF);
+renderWF();
+
+/* ---------- MCKP demo (Algorithm 2, discrete), same 8 tokens ---------- */
+function renderMCKP(){
+  var target=parseFloat(document.getElementById('mckpBudget').value);
+  document.getElementById('mckpBudgetVal').textContent=target;
+  var res=mckpBisect(wfW, wfSigma, target);
+  renderBars('mckpBars', wfW, res.b, {maxB:16});
+  document.getElementById('mckpIterLbl').textContent = res.trace.length+' iteration'+(res.trace.length===1?'':'s')+' to converge';
+  var tbody=document.getElementById('mckpTrace');
+  tbody.innerHTML='';
+  res.trace.forEach(function(row){
+    var tr=document.createElement('tr');
+    tr.innerHTML =
+      '<td class="mono">'+row.it+'</td>'+
+      '<td class="num">'+row.lamLo.toFixed(4)+'</td>'+
+      '<td class="num">'+row.lamHi.toFixed(4)+'</td>'+
+      '<td class="num">'+row.lambda.toFixed(4)+'</td>'+
+      '<td class="num">'+row.barCur.toFixed(3)+'</td>'+
+      '<td>'+row.status+'</td>';
+    tbody.appendChild(tr);
+  });
+}
+document.getElementById('mckpBudget').addEventListener('input', renderMCKP);
+renderMCKP();
+
+/* ---------- Full pipeline (Algorithm 1, Stages 1-4), T=8 tokens, d=8 channels ---------- */
+var pipeWt =     [0.85, 0.62, 0.18, 0.74, 0.51, 0.14, 0.58, 0.66];
+var pipeSigmaT = [0.85, 1.05, 0.65, 1.20, 0.95, 0.55, 0.90, 0.75];
+var pipeWc =     [1.10, 0.72, 0.95, 0.48, 1.25, 0.60, 0.82, 1.02];
+var pipeSigmaC = [0.90, 1.00, 0.80, 1.15, 0.70, 1.05, 0.95, 0.85];
+var T_PIPE=8, D_PIPE=8;
+
+function renderPipeline(){
+  var Btok=parseFloat(document.getElementById('pipeBtok').value);
+  document.getElementById('pipeBtokVal').textContent=Btok;
+
+  /* B_head = 2 * B_tok * d * 16 ; B_V = B_K = 0.5 * B_head */
+  var Bhead = 2*Btok*D_PIPE*16;
+  var BV = 0.5*Bhead, BK = 0.5*Bhead;
+
+  /* Stage 2: bar_B_V = B_V/d ; MCKP target average = bar_B_V / T */
+  var barBV = BV/D_PIPE;
+  var targetV = barBV/T_PIPE;
+  var stage2 = mckpBisect(pipeWt, pipeSigmaT, targetV);
+  renderBars('pipeVBars', pipeWt, stage2.b, {maxB:16, labelPrefix:'t'});
+
+  var Tkept = stage2.b.filter(function(b){ return b>0; }).length;
+  if(Tkept<1) Tkept=1;
+
+  /* Stage 3: k_avg = B_K / (|T_kept| * d) */
+  var kAvg = BK/(Tkept*D_PIPE);
+  var stage3 = mckpBisect(pipeWc, pipeSigmaC, kAvg);
+  renderBars('pipeKBars', pipeWc, stage3.b, {maxB:16, labelPrefix:'c'});
+
+  document.getElementById('pipeStats').textContent =
+    'B_head='+Bhead.toFixed(0)+' bits  •  B_V=B_K='+BV.toFixed(0)+
+    '  •  Ā_V (target avg bits/token) = '+targetV.toFixed(2)+
+    '  •  |T_kept| = '+Tkept+'/'+T_PIPE+
+    '  •  k_avg (target avg bits/channel) = '+kAvg.toFixed(2);
+
+  window.__pipeState = { stage2Bits: stage2.b, stage3Bits: stage3.b, Tkept: Tkept };
+  renderTriZone();
+}
+document.getElementById('pipeBtok').addEventListener('input', renderPipeline);
+
+var legendEl=document.getElementById('pipeLegend');
+[[16,'16-bit — FP16 retained'],[8,'8-bit'],[4,'4-bit'],[2,'2-bit'],[0,'0-bit — evicted']].forEach(function(pair){
+  var span=document.createElement('span');
+  var sw=document.createElement('span');
+  sw.className='sw';
+  sw.style.background = pair[0]<=0 ? cssVar('--bit0') : bitColor(pair[0]);
+  span.appendChild(sw);
+  span.appendChild(document.createTextNode(pair[1]));
+  legendEl.appendChild(span);
+});
+
+/* ---------- TriZone layout, driven by the pipeline's own live output ---------- */
+function renderTriZone(){
+  var st=window.__pipeState;
+  if(!st) return;
+  var row=document.getElementById('zoneRow');
+  row.innerHTML='';
+  var zoneA=0, zoneB=0;
+  st.stage2Bits.forEach(function(b){ if(b>0 && b<16) zoneA++; else if(b===16) zoneB++; });
+  var zoneC=2; /* illustrative: a couple of newly decoded tokens, grows by 1/step in the real system */
+  var total=zoneA+zoneB+zoneC;
+  function cell(count,color,label){
+    if(count<=0) return;
+    var d=document.createElement('div');
+    d.className='zone-cell';
+    d.style.background=color;
+    d.style.flexGrow=count;
+    d.textContent=label+' ('+count+')';
+    row.appendChild(d);
+  }
+  cell(zoneA, bitColor(4), 'Zone A');
+  cell(zoneB, bitColor(16), 'Zone B');
+  cell(zoneC, cssVar('--surface-3'), 'Zone C');
+  if(total===0){ row.innerHTML='<div class="zone-cell" style="flex:1;background:var(--surface-3);">no tokens retained</div>'; }
+}
+
+renderPipeline();
+
+})();
+</script>
