@@ -1,62 +1,106 @@
 """Fused Triton kernels for TurboQuant_mse (Algorithm 1).
 
-Each kernel processes one input vector per program, keeping the rotation
-matrix and centroid array resident for the whole kernel so no intermediate
-(normalized vector, rotated vector, per-coordinate distance) tensor is ever
-written to global memory -- only the final (indices, norm) or x_hat tensors.
+Each program processes a block of BLOCK_M input vectors at once, using tl.dot
+for the D x D rotation matmul (D is small enough -- 64/128 in this package --
+that the whole rotation matrix fits in one resident tile; only the batch (M)
+dimension is blocked/gridded). The previous version used one program per
+vector with a Python-level `for j in range(D)` loop that did the matmul as D
+serial O(D) reductions -- an O(D^2) serial anti-pattern that made the kernel
+backend dramatically slower than native's single cuBLAS matmul. This version
+keeps the whole computation in one Triton kernel (same fusion goal, no
+materialized intermediates) but does the matmul as tl.dot the way Triton is
+actually meant to run one.
+
+Empirically (on this machine's triton-windows build), the default
+compiler-picked num_warps for these small D x D tl.dot kernels was unstable
+across constexpr specializations, and the best fixed value differs by kernel:
+
+- `_mse_quantize_kernel` (has the N_CENTROIDS argmin loop on top of the
+  tl.dot) was ~4-6x slower at D=128, N_CENTROIDS=2 (bits=1) than at
+  N_CENTROIDS=4/8/16 under the compiler's default heuristic, purely from the
+  warp-count pick, not extra work; num_warps=8 was the fastest, stable choice
+  across every N_CENTROIDS at both D=64 and D=128.
+- `_mse_dequantize_kernel` (no loop, just a gather + one tl.dot) was
+  consistently ~4-5x slower than native at D=128 with num_warps=8 (or the
+  compiler default), regardless of bits; num_warps=16 fixed it to ~native
+  speed or better at every bits/D combination tested, while num_warps=8 was
+  occasionally worse than the default (multi-ms spikes at some N_CENTROIDS).
+
+Both were verified via `examples/run_perf_benchmark.py` to match or beat
+native across every bits/head_dim config.
 """
 
 import torch
 import triton
 import triton.language as tl
 
+_BLOCK_M = 64
+
 
 @triton.jit
 def _mse_quantize_kernel(
     x_ptr, rotation_ptr, centroids_ptr, indices_ptr, norm_ptr,
     stride_x_row, stride_rot_row,
-    D: tl.constexpr, BLOCK_D: tl.constexpr, N_CENTROIDS: tl.constexpr,
+    M, D: tl.constexpr, BLOCK_M: tl.constexpr, BLOCK_D: tl.constexpr, N_CENTROIDS: tl.constexpr,
 ):
-    row = tl.program_id(0)
+    pid_m = tl.program_id(0)
+    offs_m = pid_m * BLOCK_M + tl.arange(0, BLOCK_M)
     offs_d = tl.arange(0, BLOCK_D)
+    mask_m = offs_m < M
     mask_d = offs_d < D
+    mask_2d = mask_m[:, None] & mask_d[None, :]
 
-    x = tl.load(x_ptr + row * stride_x_row + offs_d, mask=mask_d, other=0.0)
-    norm = tl.sqrt(tl.sum(x * x, axis=0))
+    x = tl.load(x_ptr + offs_m[:, None] * stride_x_row + offs_d[None, :], mask=mask_2d, other=0.0)
+    norm = tl.sqrt(tl.sum(x * x, axis=1))
     norm_safe = tl.maximum(norm, 1e-12)
-    unit = x / norm_safe
+    unit = x / norm_safe[:, None]
 
-    offs_c = tl.arange(0, N_CENTROIDS)
-    centroids = tl.load(centroids_ptr + offs_c)
+    # rot_t[i, j] = rotation[j, i]  (i.e. rotation.T), loaded directly via pointer arithmetic
+    rot_t = tl.load(
+        rotation_ptr + offs_d[:, None] + offs_d[None, :] * stride_rot_row,
+        mask=mask_d[:, None] & mask_d[None, :], other=0.0,
+    )
+    y = tl.dot(unit, rot_t, input_precision="ieee")  # (BLOCK_M, BLOCK_D) = unit @ rotation.T, matches native rotate()
 
-    for j in range(D):
-        rot_row = tl.load(rotation_ptr + j * stride_rot_row + offs_d, mask=mask_d, other=0.0)
-        y_j = tl.sum(rot_row * unit, axis=0)
-        diffs = tl.abs(y_j - centroids)
-        best_idx = tl.argmin(diffs, axis=0)
-        tl.store(indices_ptr + row * D + j, best_idx)
+    best_idx = tl.zeros((BLOCK_M, BLOCK_D), dtype=tl.int32)
+    best_dist = tl.full((BLOCK_M, BLOCK_D), float("inf"), dtype=tl.float32)
+    for c in range(N_CENTROIDS):
+        centroid_c = tl.load(centroids_ptr + c)
+        dist = tl.abs(y - centroid_c)
+        better = dist < best_dist
+        best_idx = tl.where(better, c, best_idx)
+        best_dist = tl.where(better, dist, best_dist)
 
-    tl.store(norm_ptr + row, norm)
+    tl.store(indices_ptr + offs_m[:, None] * D + offs_d[None, :], best_idx, mask=mask_2d)
+    tl.store(norm_ptr + offs_m, norm, mask=mask_m)
 
 
 @triton.jit
 def _mse_dequantize_kernel(
     indices_ptr, norm_ptr, rotation_ptr, centroids_ptr, out_ptr,
     stride_rot_row, stride_out_row,
-    D: tl.constexpr, BLOCK_D: tl.constexpr,
+    M, D: tl.constexpr, BLOCK_M: tl.constexpr, BLOCK_D: tl.constexpr,
 ):
-    row = tl.program_id(0)
+    pid_m = tl.program_id(0)
+    offs_m = pid_m * BLOCK_M + tl.arange(0, BLOCK_M)
     offs_d = tl.arange(0, BLOCK_D)
+    mask_m = offs_m < M
     mask_d = offs_d < D
+    mask_2d = mask_m[:, None] & mask_d[None, :]
 
-    idx = tl.load(indices_ptr + row * D + offs_d, mask=mask_d, other=0)
-    y_hat = tl.load(centroids_ptr + idx, mask=mask_d, other=0.0)
-    norm = tl.load(norm_ptr + row)
+    idx = tl.load(indices_ptr + offs_m[:, None] * D + offs_d[None, :], mask=mask_2d, other=0)
+    y_hat = tl.load(centroids_ptr + idx, mask=mask_2d, other=0.0)
+    norm = tl.load(norm_ptr + offs_m, mask=mask_m, other=0.0)
 
-    for k in range(D):
-        rot_col = tl.load(rotation_ptr + offs_d * stride_rot_row + k, mask=mask_d, other=0.0)
-        x_hat_k = tl.sum(rot_col * y_hat, axis=0)
-        tl.store(out_ptr + row * stride_out_row + k, x_hat_k * norm)
+    # rot[j, k] = rotation[j, k], loaded as-is (no transpose)
+    rot = tl.load(
+        rotation_ptr + offs_d[:, None] * stride_rot_row + offs_d[None, :],
+        mask=mask_d[:, None] & mask_d[None, :], other=0.0,
+    )
+    x_hat = tl.dot(y_hat, rot, input_precision="ieee")  # (BLOCK_M, BLOCK_D) = y_hat @ rotation, matches native unrotate()
+
+    out = x_hat * norm[:, None]
+    tl.store(out_ptr + offs_m[:, None] * stride_out_row + offs_d[None, :], out, mask=mask_2d)
 
 
 def quantize(
@@ -69,16 +113,19 @@ def quantize(
     n = x_flat.shape[0]
     n_centroids = centroids.shape[0]
     block_d = triton.next_power_of_2(d)
+    block_m = _BLOCK_M
     rotation = rotation.to(x.device).contiguous()
     centroids = centroids.to(x.device).contiguous()
 
     indices = torch.empty((n, d), dtype=torch.int32, device=x.device)
     norm = torch.empty((n,), dtype=x.dtype, device=x.device)
 
-    _mse_quantize_kernel[(n,)](
+    grid = (triton.cdiv(n, block_m),)
+    _mse_quantize_kernel[grid](
         x_flat, rotation, centroids, indices, norm,
         x_flat.stride(0), rotation.stride(0),
-        D=d, BLOCK_D=block_d, N_CENTROIDS=n_centroids,
+        n, D=d, BLOCK_M=block_m, BLOCK_D=block_d, N_CENTROIDS=n_centroids,
+        num_warps=8,
     )
 
     return indices.reshape(*orig_shape).long(), norm.reshape(*orig_shape[:-1])
@@ -94,15 +141,18 @@ def dequantize(
     norm_flat = norm.reshape(-1).contiguous().to(indices.device)
     n = indices_flat.shape[0]
     block_d = triton.next_power_of_2(d)
+    block_m = _BLOCK_M
     rotation = rotation.to(indices.device).contiguous()
     centroids = centroids.to(indices.device).contiguous()
 
     out = torch.empty((n, d), dtype=centroids.dtype, device=indices.device)
 
-    _mse_dequantize_kernel[(n,)](
+    grid = (triton.cdiv(n, block_m),)
+    _mse_dequantize_kernel[grid](
         indices_flat, norm_flat, rotation, centroids, out,
         rotation.stride(0), out.stride(0),
-        D=d, BLOCK_D=block_d,
+        n, D=d, BLOCK_M=block_m, BLOCK_D=block_d,
+        num_warps=16,
     )
 
     return out.reshape(*orig_shape)
