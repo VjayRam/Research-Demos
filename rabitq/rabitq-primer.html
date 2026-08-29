@@ -1,0 +1,1002 @@
+<meta charset="UTF-8" />
+<title>RaBitQ Primer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+/* ============================= TOKENS ============================= */
+:root{
+  --bg:#EDF1EF;
+  --surface:#FFFFFF;
+  --surface-2:#E1E8E5;
+  --surface-3:#D3DCD8;
+  --ink:#12191A;
+  --ink-muted:#57696A;
+  --ink-faint:#8A9997;
+  --rule:#C9D3CF;
+  --accent-signal:#0E8C82;
+  --accent-signal-soft:#0E8C821a;
+  --accent-quant:#A8650A;
+  --accent-quant-soft:#A8650A1a;
+  --accent-error:#B23B23;
+  --accent-error-soft:#B23B231a;
+  --shadow:0 1px 2px rgba(18,25,26,0.06), 0 6px 20px rgba(18,25,26,0.05);
+  --radius:10px;
+  --font-display:'Newsreader', 'Iowan Old Style', 'Georgia', serif;
+  --font-body:'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
+  --font-mono:'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0C1213;
+    --surface:#131B1C;
+    --surface-2:#1B2426;
+    --surface-3:#25302F;
+    --ink:#E7EEEC;
+    --ink-muted:#93A6A3;
+    --ink-faint:#5E7371;
+    --rule:#243030;
+    --accent-signal:#4FE3D2;
+    --accent-signal-soft:#4FE3D226;
+    --accent-quant:#F2B24A;
+    --accent-quant-soft:#F2B24A26;
+    --accent-error:#FF7A61;
+    --accent-error-soft:#FF7A6126;
+    --shadow:0 1px 2px rgba(0,0,0,0.3), 0 8px 28px rgba(0,0,0,0.35);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0C1213;
+  --surface:#131B1C;
+  --surface-2:#1B2426;
+  --surface-3:#25302F;
+  --ink:#E7EEEC;
+  --ink-muted:#93A6A3;
+  --ink-faint:#5E7371;
+  --rule:#243030;
+  --accent-signal:#4FE3D2;
+  --accent-signal-soft:#4FE3D226;
+  --accent-quant:#F2B24A;
+  --accent-quant-soft:#F2B24A26;
+  --accent-error:#FF7A61;
+  --accent-error-soft:#FF7A6126;
+  --shadow:0 1px 2px rgba(0,0,0,0.3), 0 8px 28px rgba(0,0,0,0.35);
+}
+
+/* ============================= RESET/BASE ============================= */
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+@media (prefers-reduced-motion: reduce){ html{scroll-behavior:auto;} *{animation-duration:0.001ms !important; transition-duration:0.001ms !important;} }
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:var(--font-body); font-size:16px; line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4{font-family:var(--font-display); font-weight:600; text-wrap:balance; margin:0 0 .5em; color:var(--ink);}
+p{margin:0 0 1em; max-width:66ch;}
+a{color:var(--accent-signal);}
+.mono{font-family:var(--font-mono);}
+.eyebrow{
+  font-family:var(--font-mono); font-size:.72rem; letter-spacing:.11em; text-transform:uppercase;
+  color:var(--accent-signal); font-weight:600; margin:0 0 .6em;
+}
+.formula{
+  font-family:var(--font-mono); background:var(--surface-2); border:1px solid var(--rule);
+  border-radius:8px; padding:.9em 1.1em; overflow-x:auto; font-size:.92rem; color:var(--ink);
+  line-height:1.7;
+}
+.formula .op{color:var(--accent-signal);}
+.formula .q{color:var(--accent-quant);}
+code{font-family:var(--font-mono); font-size:.9em; background:var(--surface-2); padding:.1em .35em; border-radius:4px;}
+.tag{
+  display:inline-block; font-family:var(--font-mono); font-size:.7rem; letter-spacing:.06em;
+  text-transform:uppercase; padding:.2em .55em; border-radius:5px; border:1px solid var(--rule);
+  color:var(--ink-muted);
+}
+.tag.pedagogical{ color:var(--accent-quant); border-color:var(--accent-quant-soft); background:var(--accent-quant-soft);}
+.tag.paper{ color:var(--accent-signal); border-color:var(--accent-signal-soft); background:var(--accent-signal-soft);}
+
+/* ============================= LAYOUT ============================= */
+.page{ display:grid; grid-template-columns: 250px minmax(0,1fr); max-width:1320px; margin:0 auto; }
+@media (max-width:980px){ .page{ grid-template-columns:1fr; } }
+
+nav.toc{
+  position:sticky; top:0; align-self:start; height:100vh; overflow-y:auto;
+  padding:2rem 1.2rem 2rem 1.6rem; border-right:1px solid var(--rule);
+}
+@media (max-width:980px){
+  nav.toc{ position:static; height:auto; border-right:none; border-bottom:1px solid var(--rule); padding:1rem 1.2rem; }
+  nav.toc .toc-list{ display:none; }
+}
+nav.toc .brand{
+  font-family:var(--font-display); font-weight:600; font-size:1.05rem; margin-bottom:1.6rem;
+  display:flex; align-items:center; gap:.5em;
+}
+nav.toc .brand .mark{ color:var(--accent-signal); font-size:1.2em; }
+.toc-list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.15rem;}
+.toc-list a{
+  display:flex; gap:.6em; align-items:baseline; text-decoration:none; color:var(--ink-muted);
+  font-size:.86rem; padding:.4em .5em; border-radius:6px; border-left:2px solid transparent;
+}
+.toc-list a .n{ font-family:var(--font-mono); font-size:.72rem; color:var(--ink-faint); }
+.toc-list a:hover{ background:var(--surface-2); color:var(--ink); }
+.toc-list a.active{ color:var(--accent-signal); border-left-color:var(--accent-signal); background:var(--accent-signal-soft); }
+.toc-foot{ margin-top:1.5rem; padding-top:1rem; border-top:1px solid var(--rule); font-size:.78rem; color:var(--ink-faint); }
+.theme-toggle{
+  font-family:var(--font-mono); font-size:.72rem; background:var(--surface-2); border:1px solid var(--rule);
+  color:var(--ink-muted); border-radius:6px; padding:.35em .6em; cursor:pointer; margin-top:.8rem;
+}
+.theme-toggle:hover{ color:var(--ink); }
+
+main{ min-width:0; }
+section{ padding:5.5rem clamp(1.3rem,4vw,4.5rem) 0; scroll-margin-top:1rem; }
+section:last-of-type{ padding-bottom:5rem; }
+.section-inner{ max-width:960px; }
+.kicker-row{ display:flex; align-items:center; gap:.8em; margin-bottom:.3em; }
+
+.panel{
+  background:var(--surface); border:1px solid var(--rule); border-radius:var(--radius);
+  box-shadow:var(--shadow); padding:1.4rem 1.5rem; margin:1.6rem 0;
+}
+.panel-title{ font-family:var(--font-mono); font-size:.75rem; letter-spacing:.07em; text-transform:uppercase;
+  color:var(--ink-muted); margin-bottom:1rem; display:flex; justify-content:space-between; align-items:center; gap:1em; flex-wrap:wrap;}
+
+.grid-2{ display:grid; grid-template-columns:1fr 1fr; gap:1.4rem; }
+@media (max-width:760px){ .grid-2{ grid-template-columns:1fr; } }
+
+table{ border-collapse:collapse; width:100%; font-size:.88rem; }
+table caption{ caption-side:top; text-align:left; font-family:var(--font-mono); font-size:.75rem; color:var(--ink-muted); margin-bottom:.5em; text-transform:uppercase; letter-spacing:.06em;}
+th,td{ text-align:left; padding:.5em .7em; border-bottom:1px solid var(--rule); font-variant-numeric:tabular-nums; }
+th{ font-family:var(--font-mono); font-weight:600; color:var(--ink-muted); font-size:.76rem; text-transform:uppercase; letter-spacing:.04em;}
+td.num, th.num{ text-align:right; font-family:var(--font-mono); }
+.table-wrap{ overflow-x:auto; }
+
+button.btn{
+  font-family:var(--font-mono); font-size:.8rem; background:var(--surface-2); color:var(--ink);
+  border:1px solid var(--rule); border-radius:7px; padding:.5em .9em; cursor:pointer;
+  transition:background .15s, border-color .15s;
+}
+button.btn:hover{ border-color:var(--accent-signal); }
+button.btn:focus-visible, a:focus-visible, input:focus-visible{ outline:2px solid var(--accent-signal); outline-offset:2px; }
+button.btn.primary{ background:var(--accent-signal); color:#06211e; border-color:var(--accent-signal); font-weight:600;}
+button.btn:disabled{ opacity:.4; cursor:not-allowed; }
+.btn-row{ display:flex; gap:.6em; flex-wrap:wrap; align-items:center; }
+
+.control{ display:flex; flex-direction:column; gap:.35em; font-size:.82rem; color:var(--ink-muted); }
+.control input[type=range]{ accent-color:var(--accent-signal); width:100%; }
+.control select{
+  font-family:var(--font-mono); font-size:.82rem; background:var(--surface-2); color:var(--ink);
+  border:1px solid var(--rule); border-radius:6px; padding:.4em .5em;
+}
+.pillgroup{ display:flex; gap:.4em; flex-wrap:wrap; }
+.pill{
+  font-family:var(--font-mono); font-size:.78rem; padding:.35em .8em; border-radius:20px;
+  border:1px solid var(--rule); background:var(--surface-2); color:var(--ink-muted); cursor:pointer;
+}
+.pill.active{ background:var(--accent-signal-soft); border-color:var(--accent-signal); color:var(--accent-signal); }
+
+.stat{ display:flex; flex-direction:column; gap:.1em; }
+.stat .v{ font-family:var(--font-mono); font-size:1.35rem; font-weight:600; }
+.stat .k{ font-size:.75rem; color:var(--ink-muted); text-transform:uppercase; letter-spacing:.05em; }
+.stat-row{ display:flex; gap:2rem; flex-wrap:wrap; margin:1rem 0; }
+
+.callout{ border-left:3px solid var(--accent-quant); background:var(--accent-quant-soft); border-radius:0 8px 8px 0; padding:.9em 1.1em; font-size:.92rem; margin:1.2rem 0; }
+.callout p:last-child{ margin-bottom:0; }
+.callout.note{ border-left-color:var(--accent-signal); background:var(--accent-signal-soft); }
+
+hr.rule{ border:none; border-top:1px solid var(--rule); margin:2.5rem 0; }
+
+/* hero */
+.hero{ padding-top:3.6rem; }
+.hero h1{ font-size:clamp(2.3rem,4.2vw,3.4rem); line-height:1.05; max-width:16ch; }
+.hero .lede{ font-size:1.12rem; color:var(--ink-muted); max-width:56ch; }
+.hero-meta{ display:flex; gap:1.6rem; flex-wrap:wrap; margin-top:1.6rem; font-family:var(--font-mono); font-size:.78rem; color:var(--ink-faint); }
+.hero-meta a{ color:var(--ink-muted); }
+
+canvas{ display:block; width:100%; }
+svg{ display:block; width:100%; height:auto; overflow:visible; }
+.viz-caption{ font-size:.78rem; color:var(--ink-faint); margin-top:.6rem; font-family:var(--font-mono); }
+
+.bars{ display:flex; align-items:flex-end; gap:6px; height:120px; }
+.bars .bar{ flex:1; border-radius:3px 3px 0 0; position:relative; min-width:6px; }
+.bars .bar .lbl{ position:absolute; top:-1.3em; left:0; right:0; text-align:center; font-family:var(--font-mono); font-size:.66rem; color:var(--ink-faint); }
+
+.legend{ display:flex; gap:1.2em; flex-wrap:wrap; font-size:.78rem; color:var(--ink-muted); margin-top:.6em;}
+.legend .sw{ display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:.4em; vertical-align:middle;}
+
+.bitgrid{ display:flex; flex-wrap:wrap; gap:4px; font-family:var(--font-mono); font-size:.78rem; }
+.bitcell{ width:34px; height:34px; display:flex; align-items:center; justify-content:center; border-radius:5px; border:1px solid var(--rule); background:var(--surface-2); }
+.bitcell.one{ background:var(--accent-signal-soft); border-color:var(--accent-signal); color:var(--accent-signal); }
+.bitcell.zero{ background:var(--surface-3); color:var(--ink-muted); }
+
+.footer-note{ padding:3rem clamp(1.3rem,4vw,4.5rem) 4rem; color:var(--ink-faint); font-size:.85rem; }
+.footer-note a{ color:var(--ink-muted); }
+ul.src-list{ padding-left:1.1em; }
+ul.src-list li{ margin-bottom:.4em; }
+</style>
+
+<div class="page">
+  <nav class="toc">
+    <div class="brand"><span class="mark">&#8942;</span> RaBitQ Primer</div>
+    <ul class="toc-list" id="tocList">
+      <li><a href="#why"><span class="n">00</span> Why PQ isn't enough</a></li>
+      <li><a href="#setup"><span class="n">01</span> Setup: centroid &amp; normalization</a></li>
+      <li><a href="#rotation"><span class="n">02</span> Random rotation &amp; the codebook</a></li>
+      <li><a href="#code"><span class="n">03</span> The D-bit quantization code</a></li>
+      <li><a href="#estimator"><span class="n">04</span> The unbiased estimator</a></li>
+      <li><a href="#bound"><span class="n">05</span> Theorem 3.2 &mdash; the error bound</a></li>
+      <li><a href="#query"><span class="n">06</span> Quantizing the query</a></li>
+      <li><a href="#bitwise"><span class="n">07</span> Bitwise / SIMD scoring</a></li>
+      <li><a href="#ivf"><span class="n">08</span> IVF, probing &amp; re-ranking</a></li>
+      <li><a href="#worked"><span class="n">09</span> Worked example, d = 8</a></li>
+      <li><a href="#compression"><span class="n">10</span> Storage vs. PQ</a></li>
+      <li><a href="#sources"><span class="n">11</span> Sources</a></li>
+    </ul>
+    <div class="toc-foot">
+      Read top to bottom &mdash; every section builds on the last.
+      <button class="theme-toggle" id="themeToggle" type="button">Toggle theme</button>
+    </div>
+  </nav>
+
+  <main>
+    <section class="hero" id="top">
+      <div class="section-inner">
+        <div class="eyebrow">An interactive reading of one SIGMOD 2024 paper</div>
+        <h1>RaBitQ: one bit per dimension, with a distance error you can actually bound</h1>
+        <p class="lede">Product Quantization trains a codebook on your data and hopes it generalizes.
+        When it doesn't &mdash; the paper's own example is the MSong dataset, where PQ's relative
+        distance error blows past 50% &mdash; there's no theory to fall back on, only re-tuning.
+        RaBitQ replaces the trained codebook with a <em>random rotation</em> plus a single sign
+        bit per coordinate, and in exchange gets a provably unbiased distance estimator with a
+        distortion that shrinks as <code>O(1/&radic;D)</code>, for every dataset, with no training
+        step at all.</p>
+        <div class="hero-meta">
+          <span>arXiv:2405.12497 &middot; RaBitQ, Gao &amp; Long, SIGMOD 2024</span>
+        </div>
+      </div>
+      <div class="panel" style="margin-top:2.2rem;">
+        <div class="panel-title">
+          <span>Live: a vector's sign pattern after a fresh random rotation</span>
+          <span class="mono" id="heroReroll" style="color:var(--ink-faint);">click to re-roll P</span>
+        </div>
+        <div id="heroBits" class="bitgrid"></div>
+        <div class="btn-row" style="margin-top:1rem;"><button class="btn primary" id="heroRerollBtn">re-roll P and re-encode</button></div>
+        <div class="viz-caption">Every cell is one bit of <code>x&#772;<sub>b</sub></code> &mdash; the sign of one coordinate of <code>o' = P<sup>&minus;1</sup>o</code>. Re-rolling <code>P</code> changes which bits fire, but the <em>geometry</em> the estimator relies on (&sect;04) is invariant to which rotation you drew.</div>
+      </div>
+    </section>
+
+    <section id="why">
+      <div class="section-inner">
+        <div class="eyebrow">00 &middot; The problem</div>
+        <h2>Product Quantization has no error guarantee</h2>
+        <p>PQ splits a <code>D</code>-dimensional vector into sub-vectors, k-means-clusters each
+        sub-space on the dataset, and stores a per-subvector cluster index. It works well when the
+        data is well-behaved, but there's no bound on how bad the reconstruction error can get for a
+        dataset whose sub-space structure the training pass didn't anticipate. The paper's motivating
+        example:</p>
+        <div class="callout">
+          <p><span class="tag paper">from the paper</span> On the dataset MSong, PQ with the standard
+          fast SIMD-based implementation incurs more than 50% average relative error on estimated
+          distances &mdash; and recall of ANN search never exceeds 60%, even with exact-distance
+          re-ranking applied afterward. Re-ranking can't fix a candidate list that's already missing
+          the true neighbors.</p>
+        </div>
+        <p>RaBitQ's answer is to give up the trained codebook entirely. It quantizes with a
+        <em>random</em>, data-oblivious transform, and in exchange derives a closed-form,
+        distribution-free bound on how wrong its distance estimate can be &mdash; a bound that holds
+        for <em>any</em> input vector, adversarial or not, because randomness (not the data) is doing
+        the work.</p>
+      </div>
+    </section>
+
+    <section id="setup">
+      <div class="section-inner">
+        <div class="eyebrow">01 &middot; Notation</div>
+        <h2>Every vector is first centered and normalized</h2>
+        <p>Raw data and query vectors are written <code>o<sub>r</sub></code> and <code>q<sub>r</sub></code>.
+        RaBitQ is meant to sit inside an IVF index: each data vector belongs to a KMeans cluster with
+        centroid <code>c</code>, and both data and query are recentered on that centroid, then
+        normalized to unit length:</p>
+        <div class="formula">o := (o<sub class="op">r</sub> &minus; c) / &#8214;o<sub class="op">r</sub> &minus; c&#8214;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:var(--ink-faint);"># unit vector, same for q</span></div>
+        <p>The Euclidean distance between the original raw vectors reduces to the inner product of
+        the two unit vectors, plus two norms that are cheap to keep around:</p>
+        <div class="formula">&#8214;o<sub class="op">r</sub> &minus; q<sub class="op">r</sub>&#8214;&sup2; &nbsp;=&nbsp; &#8214;o<sub class="op">r</sub>&minus;c&#8214;&sup2; + &#8214;q<sub class="op">r</sub>&minus;c&#8214;&sup2; &minus; 2&middot;&#8214;o<sub class="op">r</sub>&minus;c&#8214;&middot;&#8214;q<sub class="op">r</sub>&minus;c&#8214;&middot;&lang;o,q&rang;&nbsp;&nbsp;&nbsp;<span class="tag paper">Eq. 2</span></div>
+        <p>Everything from here on is about estimating that one scalar, <code>&lang;o,q&rang;</code>,
+        as accurately as possible from a heavily compressed <code>o</code>.</p>
+      </div>
+    </section>
+
+    <section id="rotation">
+      <div class="section-inner">
+        <div class="eyebrow">02 &middot; The core trick</div>
+        <h2>A random rotation turns a fixed codebook into a rich one</h2>
+        <p>Define the tiny, fixed sign codebook &mdash; every one of the <code>2<sup>D</sup></code>
+        corners of a <code>D</code>-dimensional hypercube, rescaled to unit norm:</p>
+        <div class="formula">&#119966; := { +1/&radic;D, &minus;1/&radic;D }<sup>D</sup>&nbsp;&nbsp;&nbsp;<span class="tag paper">Eq. 3</span></div>
+        <p>Sample one random orthogonal matrix <code>P</code> (once, shared by every vector in the
+        index) and rotate that entire codebook with it:</p>
+        <div class="formula">&#119966;<sub class="q">rand</sub> := { P&middot;x &nbsp;|&nbsp; x &isin; &#119966; }&nbsp;&nbsp;&nbsp;<span class="tag paper">Eq. 4</span></div>
+        <p><code>P</code> is a single global draw, not fit to the data &mdash; so unlike a PQ
+        codebook, there's nothing to overfit and nothing that can generalize badly. Encoding a data
+        vector <code>o</code> means picking whichever corner of the rotated cube it's closest to:</p>
+        <div class="formula">o&#772; := argmax<sub>x &isin; &#119966;<sub class="q">rand</sub></sub> &lang;o, x&rang;&nbsp;&nbsp;&nbsp;<span class="tag paper">Eq. 7</span></div>
+        <p>Because <code>P</code> is orthogonal, <code>&lang;o, Px&rang; = &lang;P<sup>&#8868;</sup>o, x&rang;</code>
+        &mdash; so this is exactly the same search as first un-rotating <code>o</code> into
+        <code>o' := P<sup>&minus;1</sup>o</code>, then finding the nearest corner of the plain
+        codebook <code>&#119966;</code> to <code>o'</code>. That reduces to one sign per coordinate.</p>
+
+        <div class="panel">
+          <div class="panel-title"><span>Try it &mdash; rotate a worst-case vector, watch the coordinates spread before signing</span></div>
+          <div class="grid-2">
+            <div>
+              <div class="control" style="margin-bottom:1rem;">
+                <label for="rotDim">dimension D</label>
+                <div class="pillgroup" id="rotDimPills"></div>
+              </div>
+              <div class="control" style="margin-bottom:1rem;">
+                <label>input vector shape</label>
+                <div class="pillgroup" id="rotShapePills">
+                  <button class="pill active" data-shape="onehot">one-hot spike</button>
+                  <button class="pill" data-shape="twospike">two-spike</button>
+                  <button class="pill" data-shape="random">random direction</button>
+                </div>
+              </div>
+              <div class="btn-row"><button class="btn primary" id="rerollBtn">re-roll P</button></div>
+            </div>
+            <div>
+              <svg id="rotBars" viewBox="0 0 360 200"></svg>
+              <div class="legend">
+                <span><span class="sw" style="background:var(--ink-faint);"></span>o (before P<sup>&minus;1</sup>)</span>
+                <span><span class="sw" style="background:var(--accent-signal);"></span>o' = P<sup>&minus;1</sup>o (signed &rarr; the bits)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p>No matter how concentrated <code>o</code> starts &mdash; a single spike, even &mdash; its
+        rotated image <code>o'</code> spreads mass across every coordinate, so no single dimension
+        dominates the sign pattern. That's what lets the same fixed, data-oblivious 1-bit codebook
+        work uniformly well on any input.</p>
+      </div>
+    </section>
+
+    <section id="code">
+      <div class="section-inner">
+        <div class="eyebrow">03 &middot; Encoding</div>
+        <h2>The D-bit code, spelled out</h2>
+        <p>Write the bit string as <code>x&#772;<sub>b</sub> &isin; {0,1}<sup>D</sup></code>, one bit
+        per coordinate of <code>o'</code>, then map bits back to <code>&plusmn;1/&radic;D</code>:</p>
+        <div class="formula">x&#772;<sub>b</sub>[i] := 1[ o'<sub>i</sub> &ge; 0 ]&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:var(--ink-faint);"># the stored code, D bits total</span><br>
+x&#772; &nbsp;:=&nbsp; (2&middot;x&#772;<sub>b</sub> &minus; 1<sub>D</sub>) / &radic;D&nbsp;&nbsp;&nbsp;<span class="tag paper">from &sect;3</span><br>
+o&#772; &nbsp;:=&nbsp; P&middot;x&#772;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:var(--ink-faint);"># the reconstructed unit vector implied by the code</span></div>
+        <p><code>o&#772;</code> is never actually materialized at query time &mdash; every downstream
+        computation works with rotation-invariant inner products, so only the D-bit string
+        <code>x&#772;<sub>b</sub></code> per vector plus the shared <code>P</code> ever needs to be
+        stored. That's <code>D</code> bits per vector versus PQ's usual <code>2D</code> bits
+        (typically 8-bit codes over <code>D/4</code> sub-quantizers by default).</p>
+      </div>
+    </section>
+
+    <section id="estimator">
+      <div class="section-inner">
+        <div class="eyebrow">04 &middot; Why one dot product is enough</div>
+        <h2>The unbiased estimator, and the geometry behind it</h2>
+        <p>The estimator the paper proposes for <code>&lang;o,q&rang;</code> uses nothing but the
+        quantized code and the query:</p>
+        <div class="formula">estimator &nbsp;:=&nbsp; &lang;o&#772;, q&rang; / &lang;o&#772;, o&rang;</div>
+        <p>The numerator is one dot product between a 1-bit vector and a query; the denominator,
+        <code>&lang;o&#772;,o&rang;</code>, is a scalar that only depends on which corner of the
+        cube got picked relative to the true direction &mdash; it can be computed once at index time
+        and stored alongside the code. Decompose the query relative to <code>o</code>: let
+        <code>e<sub>1</sub></code> be the unit vector in the direction of whatever part of
+        <code>q</code> is orthogonal to <code>o</code>. Then, for non-collinear <code>o,q</code>:</p>
+        <div class="formula">&lang;o&#772;,q&rang; &nbsp;=&nbsp; &lang;o&#772;,o&rang;&middot;&lang;o,q&rang; &nbsp;+&nbsp; &lang;o&#772;,e<sub class="q">1</sub>&rang;&middot;&radic;(1&minus;&lang;o,q&rang;&sup2;)&nbsp;&nbsp;&nbsp;<span class="tag paper">Lemma 3.1</span></div>
+        <p>Divide both sides by <code>&lang;o&#772;,o&rang;</code> and take expectation over the random
+        draw of <code>P</code> (equivalently, since <code>o&#772;</code>'s direction relative to
+        <code>o</code> is rotation-symmetric, over a uniformly random unit vector orthogonal
+        component): <code>e<sub>1</sub></code> is symmetric under sign flip, so
+        <code>E[&lang;o&#772;,e<sub>1</sub>&rang;] = 0</code>, and the second term vanishes in
+        expectation &mdash; leaving:</p>
+        <div class="formula">E[ &lang;o&#772;,q&rang; / &lang;o&#772;,o&rang; ] &nbsp;=&nbsp; &lang;o,q&rang;&nbsp;&nbsp;&nbsp;<span class="tag paper">Eq. 13, unbiased</span></div>
+
+        <div class="panel">
+          <div class="panel-title"><span>The Lemma 3.1 decomposition, interactively</span></div>
+          <svg id="geomDiagram" viewBox="0 0 420 260"></svg>
+          <p class="viz-caption">Drag the angle between <code>o</code> and <code>q</code>. The
+          component of <code>q</code> along <code>o</code> contributes the signal
+          <code>&lang;o&#772;,o&rang;&middot;&lang;o,q&rang;</code>; the component along
+          <code>e<sub>1</sub></code>, orthogonal to <code>o</code>, contributes noise that a fresh
+          random <code>P</code> makes zero-mean &mdash; it's this second term whose randomness is
+          responsible for the estimator's variance, not its bias.</p>
+          <div class="control" style="margin-top:.8rem; max-width:320px;">
+            <label for="geomAngle">angle between o and q</label>
+            <input type="range" id="geomAngle" min="5" max="175" value="55">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="bound">
+      <div class="section-inner">
+        <div class="eyebrow">05 &middot; How tight is it</div>
+        <h2>Theorem 3.2 &mdash; a concentration bound, not just unbiasedness</h2>
+        <p>Unbiasedness alone doesn't tell you how far a single estimate can stray. The paper proves
+        a high-probability bound on the error, in terms of a confidence parameter
+        <code>&epsilon;<sub>0</sub></code>:</p>
+        <div class="formula">P<span class="op">{</span> | &lang;o&#772;,q&rang;/&lang;o&#772;,o&rang; &minus; &lang;o,q&rang; | &nbsp;&gt;&nbsp; &radic;((1&minus;&lang;o&#772;,o&rang;&sup2;)/&lang;o&#772;,o&rang;&sup2;) &middot; &epsilon;<sub class="q">0</sub>/&radic;(D&minus;1) <span class="op">}</span> &nbsp;&le;&nbsp; 2e<sup>&minus;c<sub class="q">0</sub>&epsilon;<sub class="q">0</sub>&sup2;</sup>&nbsp;&nbsp;&nbsp;<span class="tag paper">Theorem 3.2</span></div>
+        <p>In practice the paper sets <code>&epsilon;<sub>0</sub> = 1.9</code>, which it describes as
+        "nearly perfect confidence" for the failure probability on the right. The bound depends on
+        <code>D</code> only through <code>1/&radic;(D&minus;1)</code> &mdash; the whole point:
+        distortion shrinks predictably as dimension grows, with no dependence on the data
+        distribution at all.</p>
+        <p>The one data-dependent quantity left, <code>&lang;o&#772;,o&rang;</code>, isn't left to
+        chance either &mdash; it concentrates tightly around a known constant:</p>
+        <div class="formula">E[&lang;o&#772;,o&rang;] &nbsp;=&nbsp; &radic;(D/&pi;) &middot; 2&Gamma;(D/2) / ((D&minus;1)&middot;&Gamma;((D&minus;1)/2))&nbsp;&nbsp;&nbsp;<span class="tag paper">from &sect;3.2</span></div>
+        <p>For any realistic <code>D</code> from a hundred to a million, this expectation sits in a
+        narrow band &mdash; the paper reports <strong>0.798 to 0.800</strong> &mdash; with deviation
+        bounded by <code>&Omega;(1/&radic;D)</code>. In other words: no matter what the data looks
+        like, about 80% of the reconstructed unit vector's length points the right way.</p>
+
+        <div class="panel">
+          <div class="panel-title"><span>E[&lang;o&#772;,o&rang;] and the Theorem 3.2 half-width, computed live</span></div>
+          <div class="grid-2">
+            <div>
+              <div class="control" style="margin-bottom:1rem;">
+                <label for="boundDim">dimension D = <span id="boundDimVal">128</span></label>
+                <input type="range" id="boundDim" min="4" max="4096" step="1" value="128">
+              </div>
+              <div class="control">
+                <label for="boundEps">confidence &epsilon;<sub>0</sub> = <span id="boundEpsVal">1.9</span></label>
+                <input type="range" id="boundEps" min="0.5" max="4" step="0.1" value="1.9">
+              </div>
+            </div>
+            <div class="stat-row">
+              <div class="stat"><span class="v mono" id="boundMean">&mdash;</span><span class="k">E[&lang;o&#772;,o&rang;]</span></div>
+              <div class="stat"><span class="v mono" id="boundHalfwidth">&mdash;</span><span class="k">error half-width</span></div>
+              <div class="stat"><span class="v mono" id="boundFail">&mdash;</span><span class="k">failure prob. bound 2e<sup>&minus;c&#8320;&epsilon;&#8320;&sup2;</sup> (c&#8320;=1)</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="query">
+      <div class="section-inner">
+        <div class="eyebrow">06 &middot; The other half of the dot product</div>
+        <h2>Queries get their own scalar quantizer</h2>
+        <p>Storing the data side at 1 bit/dimension is only half the win &mdash; computing
+        <code>&lang;o&#772;,q&rang;</code> still needs <code>q</code> in a cheap form too. RaBitQ
+        scalar-quantizes the (rotated) query <code>q' := P<sup>&minus;1</sup>q</code> into
+        unsigned <code>B<sub>q</sub></code>-bit integers, coordinate by coordinate, using its own
+        min/max range and randomized rounding (so the rounding error is itself unbiased):</p>
+        <div class="formula">v<sub class="q">l</sub> := min<sub>i</sub> q'[i],&nbsp;&nbsp; v<sub class="q">r</sub> := max<sub>i</sub> q'[i]<br>
+&Delta; &nbsp;:=&nbsp; (v<sub class="q">r</sub> &minus; v<sub class="q">l</sub>) / (2<sup>B<sub class="q">q</sub></sup> &minus; 1)<br>
+q&#772;<sub class="q">u</sub>[i] &nbsp;:=&nbsp; &lfloor; (q'[i] &minus; v<sub class="q">l</sub>)/&Delta; &nbsp;+&nbsp; u<sub>i</sub> &rfloor;,&nbsp;&nbsp; u<sub>i</sub> &sim; Uniform[0,1]<br>
+q&#772; &nbsp;:=&nbsp; &Delta;&middot;q&#772;<sub class="q">u</sub> &nbsp;+&nbsp; v<sub class="q">l</sub>&middot;1<sub>D</sub></div>
+        <p>The random offset <code>u<sub>i</sub></code> before flooring is what makes the rounding
+        unbiased in expectation, rather than a fixed systematic truncation &mdash; the same spirit
+        as dithered quantization anywhere else.</p>
+
+        <div class="panel">
+          <div class="panel-title"><span>Try it &mdash; scalar-quantize a small query vector</span></div>
+          <div class="grid-2">
+            <div>
+              <div class="control" style="margin-bottom:1rem;">
+                <label for="qBits">query bits B<sub>q</sub> = <span id="qBitsVal">4</span></label>
+                <input type="range" id="qBits" min="1" max="8" step="1" value="4">
+              </div>
+              <div class="btn-row"><button class="btn" id="qRandomize">randomize q'</button></div>
+              <p class="viz-caption" style="margin-top:1rem;">v<sub>l</sub> = <span id="qVl" class="mono"></span>, v<sub>r</sub> = <span id="qVr" class="mono"></span>, &Delta; = <span id="qDelta" class="mono"></span></p>
+            </div>
+            <div>
+              <svg id="qBars" viewBox="0 0 340 180"></svg>
+              <div class="legend">
+                <span><span class="sw" style="background:var(--ink-faint);"></span>q' (real-valued)</span>
+                <span><span class="sw" style="background:var(--accent-quant);"></span>q&#772; (reconstructed from B<sub>q</sub>-bit code)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="bitwise">
+      <div class="section-inner">
+        <div class="eyebrow">07 &middot; Making it fast</div>
+        <h2>Bit-plane popcount instead of a lookup table</h2>
+        <p>PQ's fast path is a lookup table per sub-quantizer. RaBitQ's fast path is bitwise: split
+        the <code>B<sub>q</sub></code>-bit query code into <code>B<sub>q</sub></code> separate bit
+        planes, AND each plane against the 1-bit data code, popcount the result, and recombine with
+        powers of two:</p>
+        <div class="formula">&lang;x&#772;<sub>b</sub>, q&#772;<sub class="q">u</sub>&rang; &nbsp;=&nbsp; &sum;<sub>j=0</sub><sup>B<sub class="q">q</sub>&minus;1</sup> 2<sup>j</sup> &middot; &lang;x&#772;<sub>b</sub>, q&#772;<sub class="q">u</sub><sup>(j)</sup>&rang;,&nbsp;&nbsp;&nbsp; &lang;x&#772;<sub>b</sub>, q&#772;<sub class="q">u</sub><sup>(j)</sup>&rang; = popcount( x&#772;<sub>b</sub> &amp; q&#772;<sub class="q">u</sub><sup>(j)</sup> )</div>
+        <p>Every term is a machine-word AND plus a hardware popcount instruction &mdash; no
+        multiplication, no gather from a table. The paper reports roughly <strong>3&times;</strong>
+        faster single-query distance computation than PQ on average, while remaining just as
+        SIMD-friendly for batched scans as PQ's own fast implementation.</p>
+
+        <div class="panel">
+          <div class="panel-title"><span>d = 8 bit-plane popcount, worked live</span></div>
+          <div id="bitwiseDemo"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="ivf">
+      <div class="section-inner">
+        <div class="eyebrow">08 &middot; The whole pipeline</div>
+        <h2>IVF clustering, probing, and confidence-gated re-ranking</h2>
+        <p>RaBitQ isn't used standalone &mdash; the paper builds it inside an IVF index. At build
+        time, KMeans clusters the dataset; each vector's own cluster centroid is the <code>c</code>
+        from &sect;01, so every vector is normalized relative to a nearby, cheap-to-compute point
+        rather than the global mean. At query time, the query probes its <code>N<sub>probe</sub></code>
+        nearest cluster centroids and scans the RaBitQ codes stored in each.</p>
+        <p>The error bound (&sect;05) is what makes re-ranking cheap rather than a fixed hyperparameter
+        guess. Since Theorem 3.2 gives an explicit confidence interval around every estimated
+        distance, a candidate can be dropped without ever computing its exact distance the moment its
+        <em>lower</em> bound already exceeds the current k-th best exact distance found so far:</p>
+        <div class="callout note">
+          <p><span class="tag paper">from the paper</span> "Due to the theoretical error bound, the
+          re-ranking strategy has the guarantee of correctly sending the true nearest neighbor from
+          the probed clusters to re-ranking with high probability." PQ has no equivalent guarantee
+          &mdash; its re-ranking budget is a fixed constant, tuned empirically per dataset.</p>
+        </div>
+        <p>Reported index-build cost on GIST (1M vectors, 960 dimensions, 32 threads): RaBitQ 117s,
+        versus PQ 105s and OPQ 291s &mdash; comparable to PQ despite computing the rotation and the
+        exact-inner-product bookkeeping per vector.</p>
+      </div>
+    </section>
+
+    <section id="worked">
+      <div class="section-inner">
+        <div class="eyebrow">09 &middot; Hand-verifiable example</div>
+        <div class="kicker-row"><h2 style="margin:0;">D = 8, one data vector, one query</h2><span class="tag pedagogical">constructed for this primer</span></div>
+        <p>The paper never works a small numeric example &mdash; every reported number is either
+        asymptotic or measured on a real dataset (GIST, MSong, SIFT). This one is small enough to
+        trace by hand, using a concrete random-sign-flip-plus-permutation matrix as a stand-in
+        orthogonal <code>P</code> (any orthogonal matrix satisfies the theorems; a literal Haar
+        draw is just harder to write down by hand).</p>
+        <div class="panel">
+          <div class="panel-title">
+            <span>Step through it</span>
+            <span class="btn-row"><button class="btn" id="wPrev">&larr; back</button><button class="btn primary" id="wNext">next &rarr;</button></span>
+          </div>
+          <div class="step-dots" id="wDots" style="display:flex;gap:.4em;margin-bottom:1em;"></div>
+          <div id="wBody"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="compression">
+      <div class="section-inner">
+        <div class="eyebrow">10 &middot; What it buys you</div>
+        <h2>Storage: D bits vs. PQ's 2D bits</h2>
+        <p>RaBitQ's data-side code is exactly <code>D</code> bits per vector, plus a handful of
+        per-vector scalars (<code>&#8214;o<sub>r</sub>&minus;c&#8214;</code>, <code>&lang;o&#772;,o&rang;</code>)
+        that cost a few bytes total regardless of <code>D</code>. PQ's default configuration spends
+        <code>2D</code> bits (one 8-bit code per sub-quantizer, <code>D/4</code> sub-quantizers by
+        the paper's stated default) &mdash; twice the bits for a codebook that, unlike RaBitQ's, can
+        fail arbitrarily badly on the wrong dataset.</p>
+        <div class="panel">
+          <div class="panel-title"><span>Calculator</span></div>
+          <div class="grid-2">
+            <div>
+              <div class="control" style="margin-bottom:1rem;">
+                <label for="crDim">dimension D = <span id="crDimVal">128</span></label>
+                <input type="range" id="crDim" min="8" max="1536" step="8" value="128">
+              </div>
+            </div>
+            <div class="stat-row">
+              <div class="stat"><span class="v mono" id="crRabitq">&mdash;</span><span class="k">RaBitQ bytes/vector (D bits)</span></div>
+              <div class="stat"><span class="v mono" id="crPq">&mdash;</span><span class="k">PQ default bytes/vector (2D bits)</span></div>
+              <div class="stat"><span class="v mono" id="crFp32">&mdash;</span><span class="k">fp32 bytes/vector</span></div>
+            </div>
+          </div>
+        </div>
+        <p>Query-side cost is separate and tunable: <code>B<sub>q</sub></code> bits per query
+        coordinate (&sect;06), chosen independently of the 1-bit data code &mdash; a knob PQ doesn't
+        have, since PQ quantizes data and query symmetrically through the same codebook.</p>
+      </div>
+    </section>
+
+    <section id="sources">
+      <div class="section-inner footer-note" style="padding:0;">
+        <div class="eyebrow">11 &middot; Sources</div>
+        <ul class="src-list">
+          <li><strong>RaBitQ</strong> &mdash; Jianyang Gao, Cheng Long. <em>"RaBitQ: Quantizing High-Dimensional Vectors with a Theoretical Error Bound for Approximate Nearest Neighbor Search."</em> <span class="mono">arXiv:2405.12497</span>, SIGMOD 2024. Eq. 2&ndash;4, Eq. 7, Eq. 13, Lemma 3.1, Theorem 3.2, &sect;3 (query quantization &amp; bitwise scoring), &sect;5.2.3 (experiments).</li>
+        </ul>
+        <p style="margin-top:1.5rem;">Everything tagged <span class="tag pedagogical">constructed for this primer</span>
+        is a hand-built teaching example, not a number transcribed from the paper; everything tagged
+        <span class="tag paper">from the paper</span> is transcribed directly from the source text
+        (equation numbers as printed in the arXiv HTML edition).</p>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ---------- theme toggle ---------- */
+var root=document.documentElement;
+var stored=null;
+try{ stored=localStorage.getItem('rq-theme'); }catch(e){}
+if(stored) root.setAttribute('data-theme', stored);
+document.getElementById('themeToggle').addEventListener('click', function(){
+  var cur=root.getAttribute('data-theme');
+  var next = cur==='dark' ? 'light' : (cur==='light' ? null : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'light':'dark'));
+  if(next){ root.setAttribute('data-theme', next); } else { root.removeAttribute('data-theme'); }
+  try{ localStorage.setItem('rq-theme', next || ''); }catch(e){}
+});
+function cssVar(name){ return getComputedStyle(root).getPropertyValue(name).trim(); }
+
+/* ---------- TOC active-section tracking ---------- */
+var tocLinks=Array.prototype.slice.call(document.querySelectorAll('.toc-list a'));
+var sections=tocLinks.map(function(a){ return document.querySelector(a.getAttribute('href')); });
+function updateActive(){
+  var y=window.scrollY+120;
+  var idx=0;
+  for(var i=0;i<sections.length;i++){ if(sections[i] && sections[i].offsetTop<=y) idx=i; }
+  tocLinks.forEach(function(a,i){ a.classList.toggle('active', i===idx); });
+}
+window.addEventListener('scroll', updateActive, {passive:true});
+updateActive();
+
+/* ---------- math helpers ---------- */
+function lanczosGamma(z){
+  var g=7;
+  var p=[0.99999999999980993,676.5203681218851,-1259.1392167224028,771.32342877765313,
+    -176.61502916214059,12.507343278686905,-0.13857109526572012,9.9843695780195716e-6,1.5056327351493116e-7];
+  if(z<0.5){ return Math.PI/(Math.sin(Math.PI*z)*lanczosGamma(1-z)); }
+  z-=1;
+  var x=p[0];
+  for(var i=1;i<g+2;i++) x+=p[i]/(z+i);
+  var t=z+g+0.5;
+  return Math.sqrt(2*Math.PI)*Math.pow(t,z+0.5)*Math.exp(-t)*x;
+}
+function expectedOtildeDotO(D){
+  // E[<o_bar,o>] = sqrt(D/pi) * 2*Gamma(D/2) / ((D-1)*Gamma((D-1)/2))
+  return Math.sqrt(D/Math.PI) * 2*lanczosGamma(D/2) / ((D-1)*lanczosGamma((D-1)/2));
+}
+function randn(){
+  var u=1-Math.random(), v=Math.random();
+  return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);
+}
+function norm2(v){ return Math.sqrt(v.reduce(function(s,x){return s+x*x;},0)); }
+/* random orthogonal matrix via Gram-Schmidt of a Gaussian matrix; rows[i] . x = (P^-1 x)_i */
+function randomOrthogonal(d){
+  var cols=[];
+  for(var j=0;j<d;j++){
+    var v=[]; for(var i=0;i<d;i++) v.push(randn());
+    for(var k=0;k<j;k++){
+      var dot=0; for(i=0;i<d;i++) dot+=v[i]*cols[k][i];
+      for(i=0;i<d;i++) v[i]-=dot*cols[k][i];
+    }
+    var norm=Math.sqrt(v.reduce(function(s,x){return s+x*x;},0))||1;
+    for(i=0;i<d;i++) v[i]/=norm;
+    cols.push(v);
+  }
+  return cols; // rows of P^-1 = P^T since P orthogonal
+}
+function applyMatRows(rows,x){
+  return rows.map(function(row){ var s=0; for(var i=0;i<row.length;i++) s+=row[i]*x[i]; return s; });
+}
+
+var SIGNAL=function(){return cssVar('--accent-signal')||'#0E8C82';};
+var QUANT=function(){return cssVar('--accent-quant')||'#A8650A';};
+var FAINT=function(){return cssVar('--ink-faint')||'#8A9997';};
+var RULE=function(){return cssVar('--rule')||'#C9D3CF';};
+
+function svgEl(tag,attrs){
+  var el=document.createElementNS('http://www.w3.org/2000/svg',tag);
+  for(var k in attrs) el.setAttribute(k, attrs[k]);
+  return el;
+}
+function clearSvg(svg){ while(svg.firstChild) svg.removeChild(svg.firstChild); }
+
+/* ================= HERO: sign bits after rotation ================= */
+(function heroDemo(){
+  var D=24;
+  var P=null;
+  var wrap=document.getElementById('heroBits');
+  function encode(){
+    if(!P) P=randomOrthogonal(D);
+    var o=[]; for(var i=0;i<D;i++) o.push(randn());
+    var n=norm2(o); for(i=0;i<D;i++) o[i]/=n;
+    var oPrime=applyMatRows(P,o);
+    wrap.innerHTML='';
+    oPrime.forEach(function(v){
+      var cell=document.createElement('div');
+      cell.className='bitcell '+(v>=0?'one':'zero');
+      cell.textContent=v>=0?'1':'0';
+      wrap.appendChild(cell);
+    });
+  }
+  document.getElementById('heroRerollBtn').addEventListener('click', function(){ P=null; encode(); });
+  encode();
+})();
+
+/* ================= SECTION 02: rotation bars ================= */
+(function rotationDemo(){
+  var dims=[8,32,128,512];
+  var pillWrap=document.getElementById('rotDimPills');
+  var curD=32;
+  dims.forEach(function(dv){
+    var b=document.createElement('button');
+    b.className='pill'+(dv===curD?' active':'');
+    b.textContent='D='+dv;
+    b.addEventListener('click',function(){
+      curD=dv;
+      Array.prototype.forEach.call(pillWrap.children,function(c){c.classList.toggle('active',c===b);});
+      Pi=null; run();
+    });
+    pillWrap.appendChild(b);
+  });
+  var shapeButtons=Array.prototype.slice.call(document.querySelectorAll('#rotShapePills .pill'));
+  var curShape='onehot';
+  shapeButtons.forEach(function(btn){
+    btn.addEventListener('click',function(){
+      curShape=btn.getAttribute('data-shape');
+      shapeButtons.forEach(function(b){b.classList.toggle('active',b===btn);});
+      run();
+    });
+  });
+  var Pi=null;
+  document.getElementById('rerollBtn').addEventListener('click', function(){ Pi=null; run(); });
+
+  function makeVec(d,shape){
+    var v=new Array(d).fill(0);
+    if(shape==='onehot'){ v[0]=1; }
+    else if(shape==='twospike'){ v[0]=1/Math.sqrt(2); v[1]=1/Math.sqrt(2); }
+    else { for(var i=0;i<d;i++) v[i]=randn(); var n=norm2(v); for(i=0;i<d;i++) v[i]/=n; }
+    return v;
+  }
+
+  function run(){
+    var svg=document.getElementById('rotBars');
+    clearSvg(svg);
+    var d=curD;
+    if(!Pi || Pi.length!==d) Pi=randomOrthogonal(d);
+    var o=makeVec(d,curShape);
+    var oPrime=applyMatRows(Pi,o);
+
+    var W=360,H=200,ML=8,MB=20,MT=10,MR=8;
+    var plotW=W-ML-MR, plotH=H-MT-MB;
+    var n=Math.min(d,64);
+    var bw=plotW/n;
+    var mid=MT+plotH/2;
+    var scale=plotH/2*0.9;
+    for(var i=0;i<n;i++){
+      var h1=Math.abs(o[i])*scale;
+      svg.appendChild(svgEl('rect',{x:ML+i*bw, y:o[i]>=0?mid-h1:mid, width:Math.max(1,bw-1), height:Math.max(0.5,h1), fill:FAINT(), opacity:0.7}));
+    }
+    for(i=0;i<n;i++){
+      var h2=Math.min(1,Math.abs(oPrime[i]))*scale;
+      var barX=ML+i*bw+bw*0.15;
+      svg.appendChild(svgEl('rect',{x:barX, y:oPrime[i]>=0?mid-h2:mid, width:Math.max(1,bw*0.55), height:Math.max(0.5,h2), fill:SIGNAL(), opacity:0.85}));
+    }
+    svg.appendChild(svgEl('line',{x1:ML,y1:mid,x2:ML+plotW,y2:mid,stroke:RULE()}));
+  }
+  run();
+})();
+
+/* ================= SECTION 04: Lemma 3.1 geometry ================= */
+(function geomDemo(){
+  var slider=document.getElementById('geomAngle');
+  var svg=document.getElementById('geomDiagram');
+  function render(){
+    clearSvg(svg);
+    var ang=parseFloat(slider.value)*Math.PI/180;
+    var W=420,H=260,cx=140,cy=200,R=140;
+    // o along +x
+    var ox=cx+R, oy=cy;
+    svg.appendChild(svgEl('line',{x1:cx,y1:cy,x2:ox,y2:oy,stroke:SIGNAL(),'stroke-width':2.5}));
+    svg.appendChild(svgEl('text',{x:ox+6,y:oy+4,'font-family':'IBM Plex Mono, monospace','font-size':'13',fill:SIGNAL()})).textContent='o';
+    // q at angle
+    var qx=cx+R*Math.cos(ang), qy=cy-R*Math.sin(ang);
+    svg.appendChild(svgEl('line',{x1:cx,y1:cy,x2:qx,y2:qy,stroke:QUANT(),'stroke-width':2.5}));
+    svg.appendChild(svgEl('text',{x:qx+6,y:qy-4,'font-family':'IBM Plex Mono, monospace','font-size':'13',fill:QUANT()})).textContent='q';
+    // parallel component (projection on o axis)
+    var parX=cx+R*Math.cos(ang), parYax=cy;
+    svg.appendChild(svgEl('line',{x1:cx,y1:cy,x2:parX,y2:cy,stroke:FAINT(),'stroke-width':2,'stroke-dasharray':'4,3'}));
+    // e1 direction (orthogonal, +y up)
+    var e1x=cx, e1y=cy-R*0.55;
+    svg.appendChild(svgEl('line',{x1:cx,y1:cy,x2:e1x,y2:e1y,stroke:FAINT(),'stroke-width':2,'stroke-dasharray':'2,3'}));
+    svg.appendChild(svgEl('text',{x:e1x-34,y:e1y+4,'font-family':'IBM Plex Mono, monospace','font-size':'12',fill:FAINT()})).textContent='e₁ (⊥ o)';
+    // dashed vertical connecting q to its projection
+    svg.appendChild(svgEl('line',{x1:qx,y1:qy,x2:parX,y2:cy,stroke:RULE(),'stroke-width':1,'stroke-dasharray':'3,3'}));
+    // arc for angle
+    var arcR=36;
+    var largeArc = ang>Math.PI ? 1:0;
+    var ax1=cx+arcR, ay1=cy;
+    var ax2=cx+arcR*Math.cos(ang), ay2=cy-arcR*Math.sin(ang);
+    svg.appendChild(svgEl('path',{d:'M '+ax1+' '+ay1+' A '+arcR+' '+arcR+' 0 '+largeArc+' 0 '+ax2+' '+ay2, fill:'none', stroke:RULE(),'stroke-width':1.5}));
+    // origin dot
+    svg.appendChild(svgEl('circle',{cx:cx,cy:cy,r:3,fill:cssVar('--ink')||'#12191A'}));
+    var innerProd=Math.cos(ang);
+    var labelEl=svgEl('text',{x:12,y:24,'font-family':'IBM Plex Mono, monospace','font-size':'13',fill:cssVar('--ink')||'#12191A'});
+    labelEl.textContent='⟨o,q⟩ = cos(angle) = '+innerProd.toFixed(3)+',  √(1−⟨o,q⟩²) = '+Math.sqrt(Math.max(0,1-innerProd*innerProd)).toFixed(3);
+    svg.appendChild(labelEl);
+  }
+  slider.addEventListener('input', render);
+  render();
+})();
+
+/* ================= SECTION 05: Theorem 3.2 calculator ================= */
+(function boundDemo(){
+  var dimSlider=document.getElementById('boundDim');
+  var epsSlider=document.getElementById('boundEps');
+  var dimVal=document.getElementById('boundDimVal');
+  var epsVal=document.getElementById('boundEpsVal');
+  var meanEl=document.getElementById('boundMean');
+  var hwEl=document.getElementById('boundHalfwidth');
+  var failEl=document.getElementById('boundFail');
+  function render(){
+    var D=parseInt(dimSlider.value,10);
+    var eps=parseFloat(epsSlider.value);
+    dimVal.textContent=D; epsVal.textContent=eps.toFixed(1);
+    var mean=expectedOtildeDotO(D);
+    meanEl.textContent=mean.toFixed(4);
+    var halfwidth=Math.sqrt((1-mean*mean)/(mean*mean)) * eps/Math.sqrt(Math.max(1,D-1));
+    hwEl.textContent='±'+halfwidth.toFixed(4);
+    var fail=2*Math.exp(-1*eps*eps);
+    failEl.textContent=fail.toExponential(2);
+  }
+  dimSlider.addEventListener('input', render);
+  epsSlider.addEventListener('input', render);
+  render();
+})();
+
+/* ================= SECTION 06: query scalar quantization ================= */
+(function queryDemo(){
+  var bitsSlider=document.getElementById('qBits');
+  var bitsVal=document.getElementById('qBitsVal');
+  var svg=document.getElementById('qBars');
+  var vlEl=document.getElementById('qVl'), vrEl=document.getElementById('qVr'), deltaEl=document.getElementById('qDelta');
+  var D=10;
+  var qPrime=[];
+  function randomizeQ(){
+    qPrime=[]; for(var i=0;i<D;i++) qPrime.push((Math.random()*2-1));
+  }
+  function render(){
+    var Bq=parseInt(bitsSlider.value,10);
+    bitsVal.textContent=Bq;
+    var vl=Math.min.apply(null,qPrime), vr=Math.max.apply(null,qPrime);
+    var levels=Math.pow(2,Bq)-1;
+    var delta=(vr-vl)/levels;
+    vlEl.textContent=vl.toFixed(3); vrEl.textContent=vr.toFixed(3); deltaEl.textContent=delta.toFixed(4);
+    var qHat=qPrime.map(function(v){
+      var u=Math.random();
+      var qu=Math.floor((v-vl)/delta + u);
+      qu=Math.max(0,Math.min(levels,qu));
+      return delta*qu+vl;
+    });
+    clearSvg(svg);
+    var W=340,H=180,ML=8,MB=18,MT=10,MR=8;
+    var plotW=W-ML-MR, plotH=H-MT-MB;
+    var mid=MT+plotH/2, scale=plotH/2*0.85;
+    var bw=plotW/D;
+    for(var i=0;i<D;i++){
+      var h1=Math.abs(qPrime[i])*scale;
+      svg.appendChild(svgEl('rect',{x:ML+i*bw, y:qPrime[i]>=0?mid-h1:mid, width:Math.max(1,bw*0.4), height:Math.max(0.5,h1), fill:FAINT(), opacity:0.8}));
+      var h2=Math.abs(qHat[i])*scale;
+      svg.appendChild(svgEl('rect',{x:ML+i*bw+bw*0.45, y:qHat[i]>=0?mid-h2:mid, width:Math.max(1,bw*0.4), height:Math.max(0.5,h2), fill:QUANT(), opacity:0.85}));
+    }
+    svg.appendChild(svgEl('line',{x1:ML,y1:mid,x2:ML+plotW,y2:mid,stroke:RULE()}));
+  }
+  document.getElementById('qRandomize').addEventListener('click', function(){ randomizeQ(); render(); });
+  bitsSlider.addEventListener('input', render);
+  randomizeQ(); render();
+})();
+
+/* ================= SECTION 07: bitwise popcount demo ================= */
+(function bitwiseDemo(){
+  var D=8, Bq=3;
+  var wrap=document.getElementById('bitwiseDemo');
+  var xBits=[1,0,1,1,0,0,1,0];
+  var qVals=[5,2,7,1,6,3,0,4]; // 3-bit unsigned values 0..7
+  function bitPlane(j){ return qVals.map(function(v){ return (v>>j)&1; }); }
+  function popcountAnd(a,b){ var s=0; for(var i=0;i<a.length;i++) s+=(a[i]&b[i]); return s; }
+  var html='<div class="table-wrap"><table><thead><tr><th>coord i</th>';
+  for(var i=0;i<D;i++) html+='<th class="num">'+i+'</th>';
+  html+='</tr></thead><tbody>';
+  html+='<tr><td>x&#772;<sub>b</sub>[i]</td>'+xBits.map(function(b){return '<td class="num">'+b+'</td>';}).join('')+'</tr>';
+  html+='<tr><td>q&#772;<sub>u</sub>[i] (0..'+(Math.pow(2,Bq)-1)+')</td>'+qVals.map(function(v){return '<td class="num">'+v+'</td>';}).join('')+'</tr>';
+  html+='</tbody></table></div>';
+  html+='<div class="table-wrap" style="margin-top:1rem;"><table><caption>bit-plane AND + popcount</caption><thead><tr><th>plane j</th><th>q&#772;<sub>u</sub><sup>(j)</sup></th><th class="num">popcount(x&#772;<sub>b</sub> &amp; q&#772;<sub>u</sub><sup>(j)</sup>)</th><th class="num">weight 2<sup>j</sup></th><th class="num">contribution</th></tr></thead><tbody>';
+  var total=0;
+  for(var j=0;j<Bq;j++){
+    var plane=bitPlane(j);
+    var pc=popcountAnd(xBits,plane);
+    var contrib=pc*Math.pow(2,j);
+    total+=contrib;
+    html+='<tr><td>'+j+'</td><td class="mono">'+plane.join('')+'</td><td class="num">'+pc+'</td><td class="num">'+Math.pow(2,j)+'</td><td class="num">'+contrib+'</td></tr>';
+  }
+  html+='</tbody></table></div>';
+  var floatDot=0; for(i=0;i<D;i++) floatDot += xBits[i]*qVals[i];
+  html+='<p class="viz-caption" style="margin-top:.8rem;">&Sigma; 2<sup>j</sup>&middot;popcount(&middot;) = <strong>'+total+'</strong> &mdash; matches the direct integer dot product &lang;x&#772;<sub>b</sub>,q&#772;<sub>u</sub>&rang; = '+floatDot+' exactly, computed here with no multiplication, only AND + popcount per bit-plane.</p>';
+  wrap.innerHTML=html;
+})();
+
+/* ================= SECTION 09: worked example, D=8 ================= */
+(function workedDemo(){
+  var D=8;
+  // fixed orthogonal-ish stand-in: signed permutation (a valid orthogonal matrix)
+  var perm=[3,0,4,1,6,2,7,5];
+  var signs=[1,-1,1,1,-1,1,-1,1];
+  function applyPInv(v){ // (P^-1 v)[i] = signs[i] * v[perm[i]]
+    return perm.map(function(p,i){ return signs[i]*v[p]; });
+  }
+  function applyP(v){ // inverse of applyPInv: place v[i] back at index perm[i], undo sign
+    var out=new Array(D);
+    perm.forEach(function(p,i){ out[p]=signs[i]*v[i]; });
+    return out;
+  }
+  var o=[0.5,0.1,-0.2,0.3,-0.5,0.4,0.2,-0.3];
+  var n=norm2(o); o=o.map(function(v){return v/n;});
+  var q=[0.2,-0.4,0.3,0.1,0.5,-0.2,0.4,-0.1];
+  var nq=norm2(q); q=q.map(function(v){return v/nq;});
+
+  var oPrime=applyPInv(o);
+  var xBits=oPrime.map(function(v){return v>=0?1:0;});
+  var xTilde=xBits.map(function(b){return (2*b-1)/Math.sqrt(D);});
+  var oTilde=applyP(xTilde);
+  var oTildeDotO=oTilde.reduce(function(s,v,i){return s+v*o[i];},0);
+  var oTildeDotQ=oTilde.reduce(function(s,v,i){return s+v*q[i];},0);
+  var trueDotOQ=o.reduce(function(s,v,i){return s+v*q[i];},0);
+  var estimate=oTildeDotQ/oTildeDotO;
+
+  var steps=[
+    {t:'1. Start: two unit vectors', b:
+      '<p>o = ['+o.map(function(v){return v.toFixed(3);}).join(', ')+']</p>'+
+      '<p>q = ['+q.map(function(v){return v.toFixed(3);}).join(', ')+']</p>'+
+      '<p>True &lang;o,q&rang; = '+trueDotOQ.toFixed(4)+' &mdash; this is the value we are pretending not to know at query time except through the 1-bit code of o.</p>'},
+    {t:'2. Apply P&#8315;&#185; to o (a signed-permutation stand-in for a Haar-random orthogonal matrix)', b:
+      "<p>o' = P&#8315;&#185;o = ["+oPrime.map(function(v){return v.toFixed(3);}).join(', ')+"]</p>"+
+      '<p>Any orthogonal matrix satisfies Lemma 3.1 / Theorem 3.2; a signed permutation is the simplest one to trace by hand, and is exactly what fast Hadamard-style implementations of RaBitQ use in practice instead of a dense Gaussian-QR draw.</p>'},
+    {t:'3. Sign-quantize: this is the D-bit code that actually gets stored', b:
+      '<p>x&#772;<sub>b</sub> = [' + xBits.join(', ') + ']  (1 bit per coordinate, D='+D+' bits total)</p>'+
+      '<p>x&#772; = (2x&#772;<sub>b</sub>&minus;1)/&radic;D = [' + xTilde.map(function(v){return v.toFixed(3);}).join(', ') + ']</p>'},
+    {t:'4. Rotate back: o&#772; = P&middot;x&#772; (never actually computed at query time, shown here only to check the math)', b:
+      '<p>o&#772; = [' + oTilde.map(function(v){return v.toFixed(3);}).join(', ') + ']</p>'+
+      '<p>&lang;o&#772;,o&rang; = '+oTildeDotO.toFixed(4)+'  &mdash;  the paper\'s theory says this should average near 0.80 across many random draws of P; one single draw can land anywhere the geometry allows.</p>'},
+    {t:'5. Query time: compute &lang;o&#772;,q&rang; and divide', b:
+      '<p>&lang;o&#772;,q&rang; = '+oTildeDotQ.toFixed(4)+'</p>'+
+      '<p>estimate = &lang;o&#772;,q&rang; / &lang;o&#772;,o&rang; = '+estimate.toFixed(4)+'</p>'+
+      '<p>true &lang;o,q&rang; = '+trueDotOQ.toFixed(4)+' &mdash; a single-draw estimate from a 1-bit-per-coordinate code, off by '+Math.abs(estimate-trueDotOQ).toFixed(4)+'. Theorem 3.2\'s bound is a high-probability statement over the random draw of P and the geometry of q relative to o &mdash; it bounds how far a typical draw can stray, not any single one exactly.</p>'}
+  ];
+  var idx=0;
+  var dotsWrap=document.getElementById('wDots');
+  steps.forEach(function(){ var d=document.createElement('div'); d.style.cssText='width:8px;height:8px;border-radius:50%;background:var(--surface-3);'; dotsWrap.appendChild(d); });
+  function render(){
+    document.getElementById('wBody').innerHTML='<h3 style="margin-bottom:.6em;">'+steps[idx].t+'</h3>'+steps[idx].b;
+    Array.prototype.forEach.call(dotsWrap.children, function(d,i){ d.style.background = i===idx ? SIGNAL() : cssVar('--surface-3'); });
+    document.getElementById('wPrev').disabled = idx===0;
+    document.getElementById('wNext').disabled = idx===steps.length-1;
+  }
+  document.getElementById('wPrev').addEventListener('click', function(){ if(idx>0){idx--; render();} });
+  document.getElementById('wNext').addEventListener('click', function(){ if(idx<steps.length-1){idx++; render();} });
+  render();
+})();
+
+/* ================= SECTION 10: compression calculator ================= */
+(function crDemo(){
+  var slider=document.getElementById('crDim');
+  var dimVal=document.getElementById('crDimVal');
+  var rabitqEl=document.getElementById('crRabitq');
+  var pqEl=document.getElementById('crPq');
+  var fpEl=document.getElementById('crFp32');
+  function render(){
+    var D=parseInt(slider.value,10);
+    dimVal.textContent=D;
+    rabitqEl.textContent=Math.ceil(D/8)+' B';
+    pqEl.textContent=Math.ceil(2*D/8)+' B';
+    fpEl.textContent=(D*4)+' B';
+  }
+  slider.addEventListener('input', render);
+  render();
+})();
+
+})();
+</script>
