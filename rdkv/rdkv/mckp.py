@@ -54,7 +54,7 @@ def mckp_bisect(
     if w.shape != sigma.shape:
         raise ValueError(f"w and sigma must have the same shape, got {w.shape} vs {sigma.shape}")
 
-    bit_options = torch.tensor(bit_widths, dtype=torch.float32)
+    bit_options = torch.tensor(bit_widths, dtype=torch.float32, device=w.device)
     n_units = w.shape[0]
     n_options = bit_options.shape[0]
 

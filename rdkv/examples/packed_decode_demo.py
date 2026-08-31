@@ -36,10 +36,10 @@ def main() -> None:
     with torch.no_grad():
         outputs = model(**inputs, output_attentions=True)
 
-    layer_attn = outputs.attentions[0][0, 0]  # first layer, first head: (T, T)
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    layer_attn = outputs.attentions[0][0, 0].to(device)  # first layer, first head: (T, T)
     T = layer_attn.shape[-1]
     d = model.config.hidden_size // model.config.n_head if hasattr(model.config, "n_head") else 64
-    device = "cuda" if torch.cuda.is_available() else "cpu"
 
     q = torch.randn(T, d, device=device)  # see Task 6's note: real per-head Q/K extraction is a follow-up
     k = torch.randn(T, d, device=device)
@@ -56,6 +56,12 @@ def main() -> None:
     packed_bits += packed.zone_b_v.numel() * 16
     print(f"model={args.model} T={T} d={d} kept={n_kept}/{T} ({100 * n_kept / T:.1f}%)")
     print(f"approx compression vs FP16: {fp16_bits / max(packed_bits, 1):.2f}x (pre-bitpacking element counts)")
+    print(
+        "  (illustrative -- assumes Zone A(V) sub-segments are bit-packed at their "
+        "target bit-width; they are not yet, see rdkv/README.md's Phase 2 disclosed "
+        "gap. Real storage today is Zone A(V) at full float32 precision, so this "
+        "number is aspirational, not a measurement of current on-disk/in-memory size.)"
+    )
 
     q_tau = torch.randn(d, device=device)
     k_new = torch.randn(1, d, device=device)

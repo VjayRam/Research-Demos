@@ -3,9 +3,15 @@
 Packs a prefill K/V cache plus an Sec 7 AllocationResult into three storage
 zones:
 
-  Zone A -- packed, quantized (old cache): retained K rows from
-    T_kept, plus V rows with b_v in {2,4,8}, grouped into uniform-bit
-    sub-segments.
+  Zone A -- old cache: retained K rows from T_kept (packed and
+    quantized, per-channel affine, per pack_trizone below), plus V rows
+    with b_v in {2,4,8}, grouped into uniform-bit sub-segments.
+    DISCLOSED GAP: Zone A(V)'s rows are grouped by target bit-width but
+    NOT actually quantized or byte-packed -- they're stored at full
+    float32 precision. Only Zone A(K) is really quantized. See
+    PackedCache.zone_a_v's field comment and rdkv/README.md's Phase 2
+    section for the same disclosure; real V quantization/byte-packing is
+    follow-up work.
   Zone B -- FP16, retained: V rows with b_v == 16. Their K rows still
     live in Zone A (K bit-widths follow the independent per-channel
     allocation, not b_v).
@@ -28,7 +34,11 @@ _ZONE_A_V_BITS = (2, 4, 8)
 
 @dataclass
 class PackedCache:
-    zone_a_v: dict[int, torch.Tensor]  # bit_width -> (n_tokens_at_this_bit, d) quantized V rows
+    zone_a_v: dict[int, torch.Tensor]  # bit_width -> (n_tokens_at_this_bit, d) V rows grouped by
+    # target bit-width -- NOT actually quantized or byte-packed yet (a
+    # disclosed gap: values are full-precision float32, only bucketed by
+    # which bit-width they were assigned; see rdkv/README.md's Phase 2
+    # section and module docstring below for the follow-up-work note)
     zone_a_k: torch.Tensor  # (n_kept, d) quantized K rows, channel-permuted
     zone_b_v: torch.Tensor  # (n_16bit, d) FP16 V rows
     zone_b_token_idx: torch.Tensor  # original token indices of Zone B rows
@@ -83,8 +93,8 @@ def pack_trizone(k: torch.Tensor, v: torch.Tensor, allocation: AllocationResult)
     k_kept_permuted = k[kept][:, k_channel_perm]  # (n_kept, d)
 
     b_k_sorted = allocation.b_k[k_channel_perm]
-    k_scale = torch.ones(d)
-    k_zero_point = torch.zeros(d)
+    k_scale = torch.ones(d, device=k.device)
+    k_zero_point = torch.zeros(d, device=k.device)
     zone_a_k_int = torch.zeros_like(k_kept_permuted, dtype=torch.int64)
     for c in range(d):
         bits_c = int(b_k_sorted[c].item())
