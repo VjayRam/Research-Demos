@@ -24,8 +24,15 @@ Real-key MSE distortion at 4-bit is **0.00913**, matching `d · C(f, b)` from Th
 
 See [`turbo-quant/README.md`](turbo-quant/README.md) for the algorithm, distortion table, throughput, and how to reproduce.
 
-### Sequential Attention
+### Sequential Attention -- Feature Selection ([`seq-attention/`](seq-attention/))
 
-**Paper**: [Sequential Attention: Making AI models leaner and faster without sacrificing accuracy](https://research.google/blog/sequential-attention-making-ai-models-leaner-and-faster-without-sacrificing-accuracy/)
+**Paper**: [Sequential Attention for Feature Selection](https://arxiv.org/abs/2209.14881) (ICLR 2023, Yasuda et al.)
 
-*Implementation pending.*
+Paper-accurate PyTorch implementation of Algorithm 1 (greedy sequential
+selection, naive and one-pass variants), the softmax attention mask over
+per-feature attention logits, and a numerical demonstration of the
+paper's proven OMP/Sequential-LASSO equivalence. Benchmarked against the
+paper's Table 2 on MNIST, Fashion-MNIST, and ISOLET.
+
+See [`seq-attention/README.md`](seq-attention/README.md) for results and
+how to reproduce them.
