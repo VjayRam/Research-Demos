@@ -1,5 +1,14 @@
 # Reproducing Sequential Attention (and finding out where my reproduction disagrees with Google's)
 
+## TL;DR
+
+- Implemented Google's **Sequential Attention** feature-selection algorithm (ICLR 2023) from scratch in PyTorch ([`seq-attention/`](https://github.com/VjayRam/Research-Demos/tree/main/seq-attention)), faithful to Algorithm 1: a softmax mask over per-feature attention logits, greedily pinning one feature to full weight per phase.
+- Verified correctness against the paper's own equivalence theorem — my OMP, Sequential LASSO, and Sequential Attention implementations pick the *identical* feature order on synthetic data.
+- Reproducing Table 2 (MNIST / Fashion-MNIST / ISOLET) gave the **opposite** result from the paper: my full-feature baseline beat the 50-feature selected model on all three datasets, instead of losing to it.
+- Ruled out baseline over-training via a symmetric early-stopping experiment (no effect).
+- Found the real cause: my baseline MLP had **15.7x** the first-layer parameters of the selected model (same `hidden_dim`, way more input features). Shrinking the baseline to a matched parameter count closed 80% of the MNIST gap and flipped Fashion-MNIST to match the paper's direction.
+- Takeaway: the algorithm was never the problem — an unequal parameter budget between "baseline" and "selected" was quietly deciding the comparison.
+
 A few weeks ago I was reading through Google Research's blog and ran into a short post about *feature selection* — the problem of picking a small, useful subset of input columns out of a much larger set, without training a separate model for every possible subset. The post pointed at a paper: **"Sequential Attention for Feature Selection"** (Yasuda, Bateni, Chen, Fahrbach, Fu, Mirrokni — ICLR 2023, [arXiv:2209.14881](https://arxiv.org/abs/2209.14881)). I hadn't heard of it before, and the idea sounded almost too simple to work, which is usually a good sign that it's worth reading closely.
 
 This is the story of reading that paper, implementing it from scratch, and then chasing down *why* my numbers didn't match theirs — which turned out to be a more interesting rabbit hole than the implementation itself.
@@ -94,3 +103,13 @@ That's the real driver. Matching capacity closed 80% of the MNIST gap and *flipp
 The algorithm itself works as advertised — verified twice over, once by the OMP/LASSO equivalence theorem holding exactly on synthetic data, and once by selected features clearly outperforming random ones on real data. The gap to the paper's Table 2 wasn't a bug in Sequential Attention; it was an apples-to-oranges baseline in *my* benchmark harness — an unconstrained MLP with 15x the parameters of the thing it was being compared against. It's a good reminder that "compare model A to model B" quietly smuggles in "...with a fair budget" as an assumption, and it's very easy to build a baseline that's simply bigger rather than a baseline that's fair.
 
 Code, tests, and the raw experiment CSVs are in [`seq-attention/`](https://github.com/VjayRam/Research-Demos/tree/main/seq-attention) if you want to poke at the numbers yourself.
+
+## References
+
+- Google Research blog. [*"Sequential Attention: Making AI models leaner and faster without sacrificing accuracy"*](https://research.google/blog/sequential-attention-making-ai-models-leaner-and-faster-without-sacrificing-accuracy/) — the post that started this
+- Yasuda, Bateni, Chen, Fahrbach, Fu, Mirrokni. *"Sequential Attention for Feature Selection."* ICLR 2023. [arXiv:2209.14881](https://arxiv.org/abs/2209.14881)
+- [`seq-attention/`](https://github.com/VjayRam/Research-Demos/tree/main/seq-attention) — this implementation: `mask.py`, `selector.py`, `onepass.py`, `omp.py`, `models.py`
+- [`sequential-attention.html`](https://github.com/VjayRam/Research-Demos/blob/main/seq-attention/sequential-attention.html) — interactive walkthrough of the mask/selection math
+- [`examples/run_benchmark.py`](https://github.com/VjayRam/Research-Demos/blob/main/seq-attention/examples/run_benchmark.py) and its results CSV: [`run_benchmark_20260831_055324.csv`](https://github.com/VjayRam/Research-Demos/blob/main/seq-attention/examples/results/run_benchmark_20260831_055324.csv)
+- [`examples/run_benchmark_early_stopping.py`](https://github.com/VjayRam/Research-Demos/blob/main/seq-attention/examples/run_benchmark_early_stopping.py) and its results CSV: [`run_benchmark_earlystop_experiment_20260831_131827.csv`](https://github.com/VjayRam/Research-Demos/blob/main/seq-attention/examples/results/run_benchmark_earlystop_experiment_20260831_131827.csv)
+- [`examples/run_benchmark_capacity_matched.py`](https://github.com/VjayRam/Research-Demos/blob/main/seq-attention/examples/run_benchmark_capacity_matched.py) and its results CSV: [`run_benchmark_capacity_matched_experiment_20260831_133343.csv`](https://github.com/VjayRam/Research-Demos/blob/main/seq-attention/examples/results/run_benchmark_capacity_matched_experiment_20260831_133343.csv)
