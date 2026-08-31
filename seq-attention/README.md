@@ -84,6 +84,26 @@ Reproduce with: `python examples/run_benchmark.py --dataset all`. Full CSV:
 - ISOLET's raw features are not standardized (unlike MNIST/Fashion-MNIST's
   [0, 1] pixel scaling), which the softmax gate multiplies directly.
 
+### Investigating the gap to the paper
+
+Candidate explanations for why selected-feature accuracy trails baseline
+here (opposite of the paper's Table 2), tested as standalone diagnostic
+experiments — not adopted into `run_benchmark.py` itself, since each
+applies a *symmetric* change to both baseline and selected models to
+isolate its effect on the gap:
+
+- **Baseline over-training (falsified).** Hypothesis: the fixed 2000-step,
+  no-regularization training budget lets the baseline over-fit relative to
+  the 50-feature model. Tested by applying the same held-out-validation,
+  patience-based early stopping to both models
+  (`examples/run_benchmark_early_stopping.py`). Result: accuracy barely
+  moved (e.g. MNIST baseline 0.9782 → 0.9753, selected 0.9409 → 0.9419) and
+  the gap only narrowed ~10% relative on each dataset — nowhere near
+  flipping direction. Full-batch Adam on these dataset sizes converges
+  smoothly enough that validation loss rarely plateaus early within 2000
+  steps, so this is not the driver of the baseline's advantage. CSV:
+  [`examples/results/run_benchmark_earlystop_experiment_20260831_131827.csv`](examples/results/run_benchmark_earlystop_experiment_20260831_131827.csv).
+
 ## File structure
 
 ```
