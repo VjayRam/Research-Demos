@@ -75,7 +75,21 @@ def test_multiple_zone_a_v_bitwidths_keep_k_v_aligned_per_token():
     # Zone A(V) score computation aren't gathered in the SAME per-bit-width
     # order as zone_a_v (see decode.py), a token's K row gets paired with a
     # different token's V row and the output diverges from the unquantized
-    # full-precision reference well beyond quantization noise.
+    # full-precision reference.
+    #
+    # A prior reviewer found that a loose atol=0.5 here is not tight enough
+    # to catch this: reverting the K-row gather to plain
+    # k_zone_a[non16_selector] (the original misalignment bug) still passes
+    # at atol=0.5 (max deviation ~0.46), hidden inside ordinary
+    # per-channel quantization noise. To make this test actually diagnostic
+    # of alignment (not quantization), we force EXACT K dequantization
+    # (k_scale=1, k_zero_point=0, zone_a_k set to the true permuted K
+    # values instead of quantize-then-round integers) so zone_a_k's
+    # dequantized rows equal the true K rows with zero quantization error.
+    # Zone A(V)'s rows are already stored unquantized (see trizone.py's
+    # zone_a_v field comment), so with K forced exact too, ANY deviation
+    # from the full-precision reference beyond float rounding can only be
+    # explained by row misalignment.
     torch.manual_seed(1)
     T, d = 6, 4
     k = torch.randn(T, d)
@@ -89,6 +103,13 @@ def test_multiple_zone_a_v_bitwidths_keep_k_v_aligned_per_token():
     )
     packed = pack_trizone(k, v, allocation)
 
+    # Force exact (noise-free) K dequantization: dequant = zone_a_k*1 + 0,
+    # so zone_a_k must hold the true K values in the same permuted-channel
+    # order pack_trizone uses.
+    packed.k_scale = torch.ones_like(packed.k_scale)
+    packed.k_zero_point = torch.zeros_like(packed.k_zero_point)
+    packed.zone_a_k = k[packed.kept_token_idx][:, packed.k_channel_perm]
+
     q_tau = torch.randn(d)
     k_new = torch.randn(2, d)
     v_new = torch.randn(2, d)
@@ -101,7 +122,9 @@ def test_multiple_zone_a_v_bitwidths_keep_k_v_aligned_per_token():
     reference = _full_precision_reference_output(k_all, v_all, q_tau, sqrt_d)
 
     assert output.shape == (d,)
-    assert torch.allclose(output, reference, atol=0.5)
+    # Tight tolerance: with K forced exact and V already unquantized, only
+    # misalignment (not quantization) could explain a deviation.
+    assert torch.allclose(output, reference, atol=1e-4)
 
 
 def test_all_evicted_falls_back_to_new_tokens_only():
