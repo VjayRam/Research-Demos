@@ -1,0 +1,747 @@
+<title>SWA vs. Linear Attention Primer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+/* ============================= TOKENS ============================= */
+:root{
+  --bg:#EDF1EF;
+  --surface:#FFFFFF;
+  --surface-2:#E1E8E5;
+  --surface-3:#D3DCD8;
+  --ink:#12191A;
+  --ink-muted:#57696A;
+  --ink-faint:#8A9997;
+  --rule:#C9D3CF;
+  --accent-signal:#0E8C82;
+  --accent-signal-soft:#0E8C821a;
+  --accent-quant:#A8650A;
+  --accent-quant-soft:#A8650A1a;
+  --accent-error:#B23B23;
+  --accent-error-soft:#B23B231a;
+  --shadow:0 1px 2px rgba(18,25,26,0.06), 0 6px 20px rgba(18,25,26,0.05);
+  --radius:10px;
+  --font-display:'Newsreader', 'Iowan Old Style', 'Georgia', serif;
+  --font-body:'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
+  --font-mono:'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  --sink:#A8650A;
+  --window:#0E8C82;
+  --dropped:#8A9997;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0C1213; --surface:#131B1C; --surface-2:#1B2426; --surface-3:#25302F;
+    --ink:#E7EEEC; --ink-muted:#93A6A3; --ink-faint:#5E7371; --rule:#243030;
+    --accent-signal:#4FE3D2; --accent-signal-soft:#4FE3D226;
+    --accent-quant:#F2B24A; --accent-quant-soft:#F2B24A26;
+    --accent-error:#FF7A61; --accent-error-soft:#FF7A6126;
+    --shadow:0 1px 2px rgba(0,0,0,0.3), 0 8px 28px rgba(0,0,0,0.35);
+    --sink:#F2B24A; --window:#4FE3D2; --dropped:#5E7371;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0C1213; --surface:#131B1C; --surface-2:#1B2426; --surface-3:#25302F;
+  --ink:#E7EEEC; --ink-muted:#93A6A3; --ink-faint:#5E7371; --rule:#243030;
+  --accent-signal:#4FE3D2; --accent-signal-soft:#4FE3D226;
+  --accent-quant:#F2B24A; --accent-quant-soft:#F2B24A26;
+  --accent-error:#FF7A61; --accent-error-soft:#FF7A6126;
+  --shadow:0 1px 2px rgba(0,0,0,0.3), 0 8px 28px rgba(0,0,0,0.35);
+  --sink:#F2B24A; --window:#4FE3D2; --dropped:#5E7371;
+}
+
+/* ============================= RESET/BASE ============================= */
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+@media (prefers-reduced-motion: reduce){ html{scroll-behavior:auto;} *{animation-duration:0.001ms !important; transition-duration:0.001ms !important;} }
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:var(--font-body); font-size:16px; line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4{font-family:var(--font-display); font-weight:600; text-wrap:balance; margin:0 0 .5em; color:var(--ink);}
+p{margin:0 0 1em; max-width:66ch;}
+a{color:var(--accent-signal);}
+.mono{font-family:var(--font-mono);}
+.eyebrow{
+  font-family:var(--font-mono); font-size:.72rem; letter-spacing:.11em; text-transform:uppercase;
+  color:var(--accent-signal); font-weight:600; margin:0 0 .6em;
+}
+.formula{
+  font-family:var(--font-mono); background:var(--surface-2); border:1px solid var(--rule);
+  border-radius:8px; padding:.9em 1.1em; overflow-x:auto; font-size:.92rem; color:var(--ink);
+  line-height:1.7;
+}
+.formula .op{color:var(--accent-signal);}
+.formula .q{color:var(--accent-quant);}
+code{font-family:var(--font-mono); font-size:.9em; background:var(--surface-2); padding:.1em .35em; border-radius:4px;}
+.tag{
+  display:inline-block; font-family:var(--font-mono); font-size:.7rem; letter-spacing:.06em;
+  text-transform:uppercase; padding:.2em .55em; border-radius:5px; border:1px solid var(--rule);
+  color:var(--ink-muted);
+}
+.tag.pedagogical{ color:var(--accent-quant); border-color:var(--accent-quant-soft); background:var(--accent-quant-soft);}
+.tag.paper{ color:var(--accent-signal); border-color:var(--accent-signal-soft); background:var(--accent-signal-soft);}
+.tag.critique{ color:var(--accent-error); border-color:var(--accent-error-soft); background:var(--accent-error-soft);}
+
+/* ============================= LAYOUT ============================= */
+.page{ display:grid; grid-template-columns: 250px minmax(0,1fr); max-width:1320px; margin:0 auto; }
+@media (max-width:980px){ .page{ grid-template-columns:1fr; } }
+
+nav.toc{
+  position:sticky; top:0; align-self:start; height:100vh; overflow-y:auto;
+  padding:2rem 1.2rem 2rem 1.6rem; border-right:1px solid var(--rule);
+}
+@media (max-width:980px){
+  nav.toc{ position:static; height:auto; border-right:none; border-bottom:1px solid var(--rule); padding:1rem 1.2rem; }
+  nav.toc .toc-list{ display:none; }
+}
+nav.toc .brand{
+  font-family:var(--font-display); font-weight:600; font-size:1.05rem; margin-bottom:1.6rem;
+  display:flex; align-items:center; gap:.5em;
+}
+nav.toc .brand .mark{ color:var(--accent-signal); font-size:1.2em; }
+.toc-list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.15rem;}
+.toc-list a{
+  display:flex; gap:.6em; align-items:baseline; text-decoration:none; color:var(--ink-muted);
+  font-size:.86rem; padding:.4em .5em; border-radius:6px; border-left:2px solid transparent;
+}
+.toc-list a .n{ font-family:var(--font-mono); font-size:.72rem; color:var(--ink-faint); }
+.toc-list a:hover{ background:var(--surface-2); color:var(--ink); }
+.toc-list a.active{ color:var(--accent-signal); border-left-color:var(--accent-signal); background:var(--accent-signal-soft); }
+.toc-foot{ margin-top:1.5rem; padding-top:1rem; border-top:1px solid var(--rule); font-size:.78rem; color:var(--ink-faint); }
+.theme-toggle{
+  font-family:var(--font-mono); font-size:.72rem; background:var(--surface-2); border:1px solid var(--rule);
+  color:var(--ink-muted); border-radius:6px; padding:.35em .6em; cursor:pointer; margin-top:.8rem;
+}
+.theme-toggle:hover{ color:var(--ink); }
+
+main{ min-width:0; }
+section{ padding:5.5rem clamp(1.3rem,4vw,4.5rem) 0; scroll-margin-top:1rem; }
+section:last-of-type{ padding-bottom:5rem; }
+.section-inner{ max-width:960px; }
+.kicker-row{ display:flex; align-items:center; gap:.8em; margin-bottom:.3em; flex-wrap:wrap; }
+
+.panel{
+  background:var(--surface); border:1px solid var(--rule); border-radius:var(--radius);
+  box-shadow:var(--shadow); padding:1.4rem 1.5rem; margin:1.6rem 0;
+}
+.panel-title{ font-family:var(--font-mono); font-size:.75rem; letter-spacing:.07em; text-transform:uppercase;
+  color:var(--ink-muted); margin-bottom:1rem; display:flex; justify-content:space-between; align-items:center; gap:1em; flex-wrap:wrap;}
+
+.grid-2{ display:grid; grid-template-columns:1fr 1fr; gap:1.4rem; }
+@media (max-width:760px){ .grid-2{ grid-template-columns:1fr; } }
+
+table{ border-collapse:collapse; width:100%; font-size:.86rem; }
+table caption{ caption-side:top; text-align:left; font-family:var(--font-mono); font-size:.75rem; color:var(--ink-muted); margin-bottom:.5em; text-transform:uppercase; letter-spacing:.06em;}
+th,td{ text-align:left; padding:.5em .7em; border-bottom:1px solid var(--rule); font-variant-numeric:tabular-nums; }
+th{ font-family:var(--font-mono); font-weight:600; color:var(--ink-muted); font-size:.74rem; text-transform:uppercase; letter-spacing:.04em;}
+td.num, th.num{ text-align:right; font-family:var(--font-mono); }
+.table-wrap{ overflow-x:auto; }
+
+.control{ display:flex; flex-direction:column; gap:.35em; font-size:.82rem; color:var(--ink-muted); }
+.control input[type=range]{ accent-color:var(--accent-signal); width:100%; }
+
+.stat{ display:flex; flex-direction:column; gap:.1em; }
+.stat .v{ font-family:var(--font-mono); font-size:1.35rem; font-weight:600; }
+.stat .k{ font-size:.75rem; color:var(--ink-muted); text-transform:uppercase; letter-spacing:.05em; }
+.stat-row{ display:flex; gap:2rem; flex-wrap:wrap; margin:1rem 0; }
+
+.callout{ border-left:3px solid var(--accent-quant); background:var(--accent-quant-soft); border-radius:0 8px 8px 0; padding:.9em 1.1em; font-size:.92rem; margin:1.2rem 0; }
+.callout p:last-child{ margin-bottom:0; }
+.callout.note{ border-left-color:var(--accent-signal); background:var(--accent-signal-soft); }
+.callout.critique{ border-left-color:var(--accent-error); background:var(--accent-error-soft); }
+
+hr.rule{ border:none; border-top:1px solid var(--rule); margin:2.5rem 0; }
+
+.legend{ display:flex; gap:1.2em; flex-wrap:wrap; font-size:.78rem; color:var(--ink-muted); margin-top:.6em;}
+.legend .sw{ display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:.4em; vertical-align:middle;}
+
+.mask-row{ display:flex; gap:4px; flex-wrap:wrap; }
+.mask-cell{
+  width:38px; height:38px; border-radius:6px; display:flex; align-items:center; justify-content:center;
+  font-family:var(--font-mono); font-size:.74rem; border:1px solid var(--rule); background:var(--surface-2);
+  color:var(--ink-faint); transition:background .15s, color .15s, border-color .15s;
+}
+.mask-cell.sink{ background:var(--accent-quant-soft); border-color:var(--sink); color:var(--sink); font-weight:600; }
+.mask-cell.window{ background:var(--accent-signal-soft); border-color:var(--window); color:var(--window); font-weight:600; }
+.mask-cell.query{ outline:2px solid var(--ink); outline-offset:1px; }
+.mask-wrap{ margin:1rem 0; }
+.mask-caption{ font-family:var(--font-mono); font-size:.72rem; color:var(--ink-faint); margin-top:.6em; }
+
+.footer-note{ padding:3rem clamp(1.3rem,4vw,4.5rem) 4rem; color:var(--ink-faint); font-size:.85rem; }
+.footer-note a{ color:var(--ink-muted); }
+ul.src-list{ padding-left:1.1em; }
+ul.src-list li{ margin-bottom:.4em; }
+ol.improve-list{ padding-left:1.3em; }
+ol.improve-list li{ margin-bottom:1em; }
+</style>
+
+<div class="page">
+  <nav class="toc">
+    <div class="brand"><span class="mark">&#8862;</span> SWA vs. Linear Primer</div>
+    <ul class="toc-list" id="tocList">
+      <li><a href="#why"><span class="n">00</span> The missing comparison</a></li>
+      <li><a href="#setup"><span class="n">01</span> Full self-attention</a></li>
+      <li><a href="#linear"><span class="n">02</span> Linear attention</a></li>
+      <li><a href="#swa"><span class="n">03</span> SWA with sinks</a></li>
+      <li><a href="#why-sinks"><span class="n">04</span> Why sinks, why this cost</a></li>
+      <li><a href="#methods"><span class="n">05</span> The linearization field</a></li>
+      <li><a href="#evalsetup"><span class="n">06</span> Evaluation setup</a></li>
+      <li><a href="#knowledge"><span class="n">07</span> Knowledge &amp; reasoning</a></li>
+      <li><a href="#niah"><span class="n">08</span> Needle-in-a-haystack</a></li>
+      <li><a href="#babilong"><span class="n">09</span> BABILong</a></li>
+      <li><a href="#speed"><span class="n">10</span> Speed &amp; memory</a></li>
+      <li><a href="#worked"><span class="n">11</span> Worked example</a></li>
+      <li><a href="#limits"><span class="n">12</span> Paper's own limitations</a></li>
+      <li><a href="#sources"><span class="n">13</span> Sources &amp; improvements</a></li>
+    </ul>
+    <div class="toc-foot">
+      Read top to bottom &mdash; every section builds on the last.
+      <button class="theme-toggle" id="themeToggle" type="button">Toggle theme</button>
+    </div>
+  </nav>
+
+  <main>
+    <section class="hero" id="top" style="padding-top:3.6rem;">
+      <div class="section-inner">
+        <div class="eyebrow">An interactive reading of one arXiv paper</div>
+        <h1 style="font-size:clamp(2.1rem,4vw,3.1rem); line-height:1.08; max-width:18ch;">Sliding-window beats linear attention</h1>
+        <p class="lede" style="font-size:1.1rem; color:var(--ink-muted); max-width:58ch;">Two competing "escape the quadratic-cache tax" strategies get compared
+        head-to-head for the first time: <strong>Sliding Window Attention (SWA)</strong> with a handful
+        of attention sinks &mdash; a training-free masking change &mdash; against a decade of
+        <strong>post-trained Linear Attention</strong> methods that spend real compute distilling a
+        transformer into a recurrent kernel approximation. The paper's finding: the training-free option
+        wins on 9 of 11 model families, and by a wide margin on long-context recall, while requiring zero
+        post-training tokens.</p>
+        <div class="hero-meta" style="display:flex; gap:1.6rem; flex-wrap:wrap; margin-top:1.6rem; font-family:var(--font-mono); font-size:.78rem; color:var(--ink-faint);">
+          <span>arXiv:2608.28444</span>
+          <span>Jolicoeur-Martineau, Sukthanker, Cameron, Gervais</span>
+        </div>
+      </div>
+      <div class="panel" style="margin-top:2.2rem;">
+        <div class="panel-title">
+          <span>Live &mdash; SWA(w,s) attention mask for a query at position t</span>
+          <span class="mono" id="maskLbl" style="color:var(--ink-faint);">w=6, s=2, t=12</span>
+        </div>
+        <div class="mask-wrap"><div class="mask-row" id="maskRow"></div></div>
+        <div class="control" style="max-width:420px;">
+          <label for="maskT">query position t, currently <span id="maskTVal">12</span></label>
+          <input type="range" id="maskT" min="1" max="16" step="1" value="12">
+        </div>
+        <div class="control" style="max-width:420px; margin-top:.6em;">
+          <label for="maskW">window size w, currently <span id="maskWVal">6</span></label>
+          <input type="range" id="maskW" min="2" max="16" step="1" value="6">
+        </div>
+        <div class="legend">
+          <span><span class="sw" style="background:var(--sink);"></span>sink (first s=2 tokens)</span>
+          <span><span class="sw" style="background:var(--window);"></span>local window (w&minus;s most recent)</span>
+          <span><span class="sw" style="background:var(--dropped);"></span>masked out</span>
+        </div>
+        <p class="viz-caption" style="font-size:.78rem; color:var(--ink-faint); margin-top:.6em;">Exactly &sect;03's formula:
+        attend to the first <code>s</code> tokens plus the most recent <code>w&minus;s</code> tokens up to and
+        including <code>t</code>. Total attended set never exceeds <code>w</code> tokens &mdash; the KV cache this
+        query needs is bounded regardless of how large <code>t</code> grows.</p>
+      </div>
+    </section>
+
+    <section id="why">
+      <div class="section-inner">
+        <div class="eyebrow">00 &middot; The reframing</div>
+        <h2>Two lineages have never been compared under the same protocol</h2>
+        <p>Full causal self-attention re-reads a KV cache that grows with every generated token &mdash;
+        memory-bandwidth-bound decoding gets slower and hungrier the longer the context. Two independent
+        research lineages attack this:</p>
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-title"><span class="mono" style="color:var(--accent-quant);">Linear Attention</span></div>
+            <p style="margin:0;">Approximate the softmax kernel with a feature map <code>&phi;</code> so
+            attention reduces to a constant-size recurrent state, updated in <code>O(1)</code> per token
+            regardless of context length. Requires <strong>post-training</strong> &mdash; anywhere from
+            20M to 100B tokens of distillation, per method &mdash; to recover the softmax teacher's
+            behavior through a fundamentally different computational form.</p>
+          </div>
+          <div class="panel">
+            <div class="panel-title"><span class="mono" style="color:var(--accent-signal);">Sliding Window Attention</span></div>
+            <p style="margin:0;">Keep the exact same softmax computation, just restrict which keys/values
+            a query can see: a fixed-size local window plus a handful of "sink" tokens. No feature-map
+            approximation, no retraining &mdash; it's a masking change applied to an already-trained
+            checkpoint. The KV cache is still bounded, this time by construction rather than by
+            approximation.</p>
+          </div>
+        </div>
+        <div class="callout">
+          <p><strong>The paper's core move:</strong> put these on the same axis &mdash; both promise
+          <code>O(1)</code>-ish inference cost independent of sequence length &mdash; and evaluate a
+          training-free SWA configuration directly against a wide field of post-trained linear-attention
+          checkpoints, using identical base models and identical benchmarks. Nobody had run this exact
+          comparison before.</p>
+        </div>
+        <p>The rest of this page follows the paper's own order: define full attention and linear attention
+        precisely (&sect;01&ndash;02), define SWA with sinks precisely (&sect;03&ndash;04), catalogue the
+        linear-attention field being compared against (&sect;05), then walk the evaluation protocol and
+        results exactly as reported (&sect;06&ndash;10), before a hand-worked example (&sect;11) and the
+        paper's own stated limitations (&sect;12).</p>
+      </div>
+    </section>
+
+    <section id="setup">
+      <div class="section-inner">
+        <div class="eyebrow">01 &middot; &sect;2.1</div>
+        <h2>Baseline: standard causal self-attention</h2>
+        <p>For a sequence of length <code>L</code>, queries/keys/values <code>q<sub>t</sub>, k<sub>i</sub>,
+        v<sub>i</sub> &isin; &#8477;<sup>d</sup></code>, the paper's baseline is the usual causal softmax
+        attention:</p>
+        <div class="panel">
+          <div class="panel-title"><span>&sect;2.1 &mdash; full self-attention</span><span class="tag paper">verbatim from the paper</span></div>
+          <div class="formula">x<sub class="op">t</sub> = &sum;<sub class="op">i=1</sub><sup>t</sup> exp(q<sub class="op">t</sub>k<sub class="op">i</sub><sup>&#8868;</sup>/&radic;d)&middot;v<sub class="op">i</sub> &nbsp;/&nbsp; &sum;<sub class="op">i=1</sub><sup>t</sup> exp(q<sub class="op">t</sub>k<sub class="op">i</sub><sup>&#8868;</sup>/&radic;d), &nbsp;&nbsp; for t &isin; [1,&hellip;,L]</div>
+        </div>
+        <p>The paper states training complexity as <code>O(D&middot;L&sup2;)</code> (quadratic in sequence
+        length, <code>D</code> the model width) and inference cost per newly generated token as
+        <code>O(L)</code> &mdash; every step re-reads the full, ever-growing KV cache. Both downstream
+        approaches in this primer exist purely to remove that <code>L</code>-dependence from decoding.</p>
+      </div>
+    </section>
+
+    <section id="linear">
+      <div class="section-inner">
+        <div class="eyebrow">02 &middot; &sect;2.3, Eq. (2)&ndash;(3)</div>
+        <h2>Linear attention: replace the softmax kernel with a factorizable one</h2>
+        <p>If <code>exp(q<sub>t</sub>k<sub>i</sub><sup>&#8868;</sup>)</code> could be written as an inner
+        product <code>&phi;(q<sub>t</sub>)&phi;(k<sub>i</sub>)<sup>&#8868;</sup></code> for some feature map
+        <code>&phi;</code>, the summation could be pulled outside the softmax and accumulated
+        incrementally:</p>
+        <div class="panel">
+          <div class="panel-title"><span>Eq. (2)&ndash;(3) &mdash; linear attention as a recurrence</span><span class="tag paper">verbatim from the paper</span></div>
+          <div class="formula">exp(q<sub class="q">t</sub>k<sub class="q">i</sub><sup>&#8868;</sup>) &asymp; &phi;(q<sub class="q">t</sub>)&phi;(k<sub class="q">i</sub>)<sup>&#8868;</sup></div>
+          <div class="formula">x<sub class="q">t</sub> = &phi;(q<sub class="q">t</sub>)s<sub class="q">t</sub> &nbsp;/&nbsp; &phi;(q<sub class="q">t</sub>)z<sub class="q">t</sub>, &nbsp;&nbsp; s<sub class="q">t</sub> = s<sub class="q">t&minus;1</sub> + &phi;(k<sub class="q">t</sub>)<sup>&#8868;</sup>v<sub class="q">t</sub>, &nbsp;&nbsp; z<sub class="q">t</sub> = z<sub class="q">t&minus;1</sub> + &phi;(k<sub class="q">t</sub>)<sup>&#8868;</sup></div>
+        </div>
+        <p><code>s<sub>t</sub></code> is a fixed-size matrix state (outer-product accumulator) and
+        <code>z<sub>t</sub></code> a fixed-size normalizer &mdash; both updated in place, never re-reading
+        history. The paper reports this as <code>O(1)</code> inference cost with respect to <code>L</code>.
+        As one concrete instance of <code>&phi;</code>, the paper cites Hedgehog's learnable, dual-sided
+        exponential map:</p>
+        <div class="formula">&phi;(x) &larr; ( exp(f(x)), exp(&minus;f(x)) ), &nbsp;&nbsp; f: &#8477;<sup>D</sup> &rarr; &#8477;<sup>D/2</sup> a learned linear projection</div>
+        <p>Every linear-attention method in this comparison picks a different <code>&phi;</code> (or a
+        different way to train one) &mdash; that choice, and how much post-training it costs, is what
+        &sect;05 catalogues.</p>
+      </div>
+    </section>
+
+    <section id="swa">
+      <div class="section-inner">
+        <div class="eyebrow">03 &middot; &sect;2.2</div>
+        <h2>SWA(w, s): the same softmax, over a bounded, fixed index set</h2>
+        <p>Sliding Window Attention keeps the exact softmax kernel from &sect;01 but restricts the sum to a
+        local window of the <code>w</code> most recent positions:</p>
+        <div class="panel">
+          <div class="panel-title"><span>&sect;2.2 &mdash; sliding window attention</span><span class="tag paper">verbatim from the paper</span></div>
+          <div class="formula">x<sub class="op">t</sub> = &sum;<sub class="op">i=max(1,t&minus;w+1)</sub><sup>t</sup> exp(q<sub class="op">t</sub>k<sub class="op">i</sub><sup>&#8868;</sup>/&radic;d)&middot;v<sub class="op">i</sub> &nbsp;/&nbsp; &sum;<sub class="op">i=max(1,t&minus;w+1)</sub><sup>t</sup> exp(q<sub class="op">t</sub>k<sub class="op">i</sub><sup>&#8868;</sup>/&radic;d)</div>
+        </div>
+        <p>Used alone, a pure local window loses everything more than <code>w</code> tokens back &mdash;
+        including, notably, the very first tokens of the sequence, which empirically anchor attention
+        distributions in trained transformers (the "attention sink" phenomenon; &sect;04 covers why). SWA
+        with sinks fixes this by reserving <code>s</code> of the <code>w</code> attended slots for the
+        first <code>s</code> tokens, unconditionally, and spending the remaining <code>w&minus;s</code>
+        slots on the local window:</p>
+        <div class="panel">
+          <div class="panel-title"><span>&sect;2.2 &mdash; SWA(w, s), notation used throughout the paper</span><span class="tag paper">verbatim from the paper</span></div>
+          <p style="margin:0;"><code>SWA(w, s)</code>: attend to the first <code>s</code> tokens (fixed at
+          <code>s=4</code> throughout the paper) in addition to the remaining <code>w&minus;s</code>
+          sliding-window slots ending at <code>t</code>.</p>
+        </div>
+        <p>Written as an index set (this primer's notation, matching the paper's description exactly):</p>
+        <div class="formula">&Iscr;(t) = {1, &hellip;, s} &cup; {max(s+1, t&minus;(w&minus;s)+1), &hellip;, t}, &nbsp;&nbsp; |&Iscr;(t)| &le; w</div>
+        <p>When <code>t &lt; w</code>, the sink range and the local-window range overlap and the union simply
+        has fewer than <code>w</code> distinct members &mdash; the formula degrades gracefully to ordinary
+        causal attention at the very start of the sequence, with no separate case needed. The live mask
+        visualization at the top of this page renders <code>&Iscr;(t)</code> exactly, for any
+        <code>t</code> and <code>w</code> you choose.</p>
+      </div>
+    </section>
+
+    <section id="why-sinks">
+      <div class="section-inner">
+        <div class="eyebrow">04 &middot; &sect;2.2, complexity</div>
+        <h2>Why sinks, and what SWA actually costs</h2>
+        <p>Prior work (StreamingLLM) observed that trained transformers dump a disproportionate share of
+        attention mass onto the first few tokens of a sequence, independent of their content &mdash; softmax
+        needs <em>somewhere</em> to send probability mass for queries with no strongly relevant key, and the
+        first tokens become that release valve during training. Drop them from a pure sliding window and
+        perplexity spikes as soon as they exit the window, even though those tokens carry little semantic
+        content themselves. Reserving <code>s=4</code> permanent slots for them costs almost nothing
+        (<code>4</code> out of a <code>w&ge;64</code> budget) and removes the spike.</p>
+        <p>Because <code>|&Iscr;(t)| &le; w</code> for every <code>t</code>, SWA's per-token inference cost
+        and KV-cache footprint are both bounded by <code>w</code> &mdash; independent of <code>L</code>,
+        same qualitative win as linear attention's <code>O(1)</code>, but reached by <em>truncating</em> the
+        exact softmax rather than <em>approximating</em> it with a different kernel. That distinction is the
+        paper's whole thesis: truncation error from a bounded window turns out to hurt less, empirically,
+        than kernel-approximation error from linearization &mdash; and truncation requires no post-training
+        to deploy.</p>
+      </div>
+    </section>
+
+    <section id="methods">
+      <div class="section-inner">
+        <div class="eyebrow">05 &middot; Table 1, &sect;2.3</div>
+        <h2>The linear-attention field being compared against</h2>
+        <p>Ten post-trained linearization methods, spanning three orders of magnitude in training-token
+        budget and one to three distillation stages:</p>
+        <div class="table-wrap">
+          <table>
+            <caption>Linear-attention baselines (paper's Table 1 / &sect;2.3)</caption>
+            <thead><tr><th>method</th><th>post-training tokens</th><th>stages</th><th>mechanism</th></tr></thead>
+            <tbody>
+              <tr><td>SUPRA</td><td class="num">100B</td><td class="num">1</td><td>linear-attention retrofit</td></tr>
+              <tr><td>Hedgehog</td><td class="num">&mdash;</td><td class="num">1</td><td>learned dual-exponential <code>&phi;</code></td></tr>
+              <tr><td>Liger-GLA</td><td class="num">20M</td><td class="num">1</td><td>gated linear attention</td></tr>
+              <tr><td>LoLCATs</td><td class="num">40M</td><td class="num">1</td><td>LoRA + linear attention, combined with a small SWA</td></tr>
+              <tr><td>DiJiang</td><td class="num">40B</td><td class="num">1</td><td>kernelized attention retrofit</td></tr>
+              <tr><td>Mamba in the Llama</td><td class="num">20B</td><td class="num">2</td><td>distill into SSM (Mamba) blocks</td></tr>
+              <tr><td>ARWKV</td><td class="num">60M&ndash;830M</td><td class="num">2&ndash;3</td><td>distill into RWKV recurrence</td></tr>
+              <tr><td>MOHAWK</td><td class="num">3&ndash;5B</td><td class="num">3</td><td>staged SSM distillation</td></tr>
+              <tr><td>Llamba</td><td class="num">8&ndash;12B</td><td class="num">3</td><td>staged SSM distillation</td></tr>
+              <tr><td>QLinAtt / QRWKV variants</td><td class="num">350&ndash;700M</td><td class="num">3</td><td>quantization-aware linear/RWKV retrofit</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Every row in this table requires nontrivial post-training compute &mdash; some of it (SUPRA, at
+        100B tokens) larger than the pretraining budget of many of the base models being linearized. SWA(w,
+        4) requires zero additional tokens: it is applied directly to the trained checkpoint at inference
+        time.</p>
+      </div>
+    </section>
+
+    <section id="evalsetup">
+      <div class="section-inner">
+        <div class="eyebrow">06 &middot; &sect;4, Table 2/A.1</div>
+        <h2>Evaluation setup</h2>
+        <p>Models spanning <strong>1.3B to 70B</strong> parameters across the Llama, Mistral, Phi, and Qwen
+        families, each compared as: (a) the original softmax teacher, (b) <code>SWA(64, 4)</code> applied
+        training-free, and (c) whichever linearized variant(s) from &sect;05 exist for that base model.</p>
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-title"><span>Knowledge / reasoning benchmarks</span></div>
+            <p style="margin:0;">MMLU (5-shot), ARC-Challenge, ARC-Easy, HellaSwag, PIQA, WinoGrande
+            &mdash; standard zero/few-shot accuracy suites, reported per-model and averaged.</p>
+          </div>
+          <div class="panel">
+            <div class="panel-title"><span>Long-context benchmarks</span></div>
+            <p style="margin:0;">Single Needle-in-a-Haystack (S-NIAH) and BABILong (QA1&ndash;QA5 average),
+            both swept across context lengths 0/0.5K&ndash;4K, with SWA window sizes
+            <code>w &isin; {128, 256, 512}</code> ablated at each length.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="knowledge">
+      <div class="section-inner">
+        <div class="eyebrow">07 &middot; Table 2, &sect;4.1</div>
+        <h2>Knowledge &amp; reasoning: SWA wins 9 of 11 model families</h2>
+        <p>Recovery is measured as the linearized/windowed model's score as a percentage of its own
+        full-attention teacher's score on the same benchmark, then averaged:</p>
+        <div class="table-wrap">
+          <table>
+            <caption>Table 1 summary &mdash; recovery vs. full-attention teacher</caption>
+            <thead><tr><th>method</th><th class="num">MMLU recovery</th><th class="num">avg. benchmark recovery</th></tr></thead>
+            <tbody>
+              <tr><td><strong>SWA(64, 4)</strong></td><td class="num"><strong>93.2%</strong></td><td class="num"><strong>99.0%</strong></td></tr>
+              <tr><td>LoLCATs</td><td class="num">83.2%</td><td class="num">97.5%</td></tr>
+              <tr><td>QRWKV6</td><td class="num">92.4%</td><td class="num">99.1%</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>QRWKV6 edges out SWA on average recovery by 0.1 points in this table while trailing by 0.8 points
+        on MMLU specifically &mdash; the paper's headline "9 of 11" figure comes from the full per-model-family
+        breakdown in Table 2 (Phi-1.5 through Qwen-72B), not from this two-row summary alone.</p>
+      </div>
+    </section>
+
+    <section id="niah">
+      <div class="section-inner">
+        <div class="eyebrow">08 &middot; Table 3, &sect;4.2.1</div>
+        <h2>Single Needle-in-a-Haystack: the gap widens sharply with context length</h2>
+        <p>S-NIAH asks the model to retrieve one fact planted at a specific depth in a long, distracting
+        context &mdash; a direct stress test of exactly what a bounded window or a bounded recurrent state
+        is supposed to be bad at, and exactly where the paper's comparison is most informative:</p>
+        <div class="table-wrap">
+          <table>
+            <caption>S-NIAH-3 accuracy at 4K context (Table 3)</caption>
+            <thead><tr><th>method</th><th class="num">accuracy @ 4K</th></tr></thead>
+            <tbody>
+              <tr><td><strong>SWA(512, 4)</strong></td><td class="num"><strong>23%</strong></td></tr>
+              <tr><td>LoLCATs(512)</td><td class="num">5.8%</td></tr>
+              <tr><td>Liger-GLA(512)</td><td class="num">0.8%</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Larger windows help substantially: <code>SWA(512,4)</code> "substantially outperforms"
+        <code>SWA(128,4)</code> at 4K context in the paper's own ablation &mdash; the needle is more likely
+        to fall inside a bigger window, unsurprisingly, but the linear-attention baselines don't get an
+        equivalent lever, since their whole appeal is a state size that does <em>not</em> grow with an
+        effective "window."</p>
+      </div>
+    </section>
+
+    <section id="babilong">
+      <div class="section-inner">
+        <div class="eyebrow">09 &middot; Table 4, &sect;4.2.2</div>
+        <h2>BABILong: multi-hop reasoning over long context</h2>
+        <p>BABILong (QA1&ndash;QA5 averaged) requires chaining facts scattered through the context rather
+        than retrieving one needle &mdash; a harder long-context task where no method retains much of the
+        full-attention teacher's ability:</p>
+        <div class="table-wrap">
+          <table>
+            <caption>BABILong average accuracy at 4K context, w=256 (Table 4)</caption>
+            <thead><tr><th>method</th><th class="num">accuracy @ 4K</th></tr></thead>
+            <tbody>
+              <tr><td>Full attention (teacher)</td><td class="num">60%</td></tr>
+              <tr><td><strong>SWA(256, 4)</strong></td><td class="num"><strong>15%</strong></td></tr>
+              <tr><td>LoLCATs</td><td class="num">3%</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Both compressed methods lose most of the teacher's multi-hop ability &mdash; but SWA retains 5x
+        more of it than LoLCATs at the same context length, the same relative pattern as S-NIAH.</p>
+      </div>
+    </section>
+
+    <section id="speed">
+      <div class="section-inner">
+        <div class="eyebrow">10 &middot; Figure 2, &sect;4.3</div>
+        <h2>Speed &amp; memory: SWA plateaus, full attention doesn't</h2>
+        <p>Measured on an NVIDIA RTX PRO 6000 Blackwell, a 4-layer transformer (embedding dim 1024, 16
+        heads, <code>d=64</code> per head), batch size 1, float16:</p>
+        <div class="stat-row">
+          <div class="stat"><div class="v">fastest</div><div class="k">SWA decode throughput, all context lengths tested</div></div>
+          <div class="stat"><div class="v">plateaus</div><div class="k">SWA KV-cache size, once context &gt; window</div></div>
+          <div class="stat"><div class="v">SWA(64) &lt; Linear &lt; SWA(512)</div><div class="k">memory ordering reported</div></div>
+        </div>
+        <p>Quoting the paper's own summary: <em>"SWA is faster and it has a similar or lower memory cost at
+        window-size smaller than 512."</em> Full attention degrades past ~1K context as expected; linear
+        attention's memory/speed curves stay comparatively flat but not faster than a small-window SWA. No
+        closed-form FLOPs expression is given for SWA in the paper &mdash; the comparison is empirical
+        (Figure 2), not analytical, for this section only.</p>
+      </div>
+    </section>
+
+    <section id="worked">
+      <div class="section-inner">
+        <div class="eyebrow">11 &middot; Hand-verifiable example</div>
+        <div class="kicker-row"><h2 style="margin:0;">One query, six tokens, SWA(4, 1) vs. full attention</h2><span class="tag pedagogical">constructed for this primer, arithmetic checked by hand</span></div>
+        <p>Take a query at <code>t=6</code> over <code>T=6</code> tokens, scalar values
+        <code>v = [10, 1, 2, 8, 4, 9]</code>, and precomputed logits
+        <code>z<sub>i</sub> = q<sub>6</sub>k<sub>i</sub><sup>&#8868;</sup>/&radic;d = [1.0, 0.2, 0.1, 1.5, 0.5, 2.0]</code>.</p>
+        <div class="panel">
+          <div class="panel-title"><span>Full attention &mdash; all 6 positions</span></div>
+          <p style="margin:0 0 .6em;"><code>exp(z) = [2.71828, 1.22140, 1.10517, 4.48169, 1.64872, 7.38906]</code>,
+          sum <code>= 18.56432</code>.</p>
+          <div class="formula">weights = [0.14641, 0.06579, 0.05953, 0.24140, 0.08880, 0.39807]</div>
+          <div class="formula">x<sub class="op">6</sub><sup>full</sup> = &sum; weight&middot;v = 1.4641+0.0658+0.1191+1.9312+0.3552+3.5826 &asymp; <strong>7.518</strong></div>
+        </div>
+        <div class="panel">
+          <div class="panel-title"><span>SWA(4, 1) &mdash; index set &Iscr;(6) = {1} &cup; {4,5,6} = {1,4,5,6}</span></div>
+          <p style="margin:0 0 .6em;">Sink <code>s=1</code> keeps token 1; window <code>w&minus;s=3</code> keeps
+          the 3 most recent tokens ending at <code>t=6</code>, i.e. {4,5,6}. Tokens 2 and 3 are masked out
+          entirely &mdash; they contribute <code>0.06579+0.05953=0.1253</code> of the full-attention
+          probability mass, which softmax now redistributes among the 4 survivors.</p>
+          <div class="formula">exp(z) restricted to {1,4,5,6} = [2.71828, 4.48169, 1.64872, 7.38906], sum = 16.23775</div>
+          <div class="formula">weights = [0.16744, 0.27604, 0.10154, 0.45514] &nbsp;&nbsp;(for tokens 1, 4, 5, 6 respectively)</div>
+          <div class="formula">x<sub class="op">6</sub><sup>SWA</sup> = 1.6744+2.2083+0.4062+4.0963 &asymp; <strong>8.385</strong></div>
+        </div>
+        <div class="callout note">
+          <p>Dropping tokens 2 and 3 moves the output from <code>7.518</code> to <code>8.385</code> &mdash; a
+          real, nonzero distortion from masking, exactly as the paper's Eq. in &sect;03 would predict
+          (renormalizing over a strict subset of positions). The paper's empirical claim is not that this
+          distortion is zero; it's that this kind of truncation distortion, in aggregate, costs less
+          downstream accuracy than the distortion a linear-attention kernel approximation introduces at
+          comparable post-training budgets &mdash; which is exactly what &sect;07&ndash;09's tables measure.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="limits">
+      <div class="section-inner">
+        <div class="eyebrow">12 &middot; &sect;5, as stated in the paper</div>
+        <h2>What the paper itself says it doesn't cover</h2>
+        <ul class="src-list">
+          <li><strong>Training-free only:</strong> the paper explicitly notes "post-training can further
+          improve the performance of SWA" but does not investigate it &mdash; the comparison is
+          zero-shot-SWA vs. post-trained-linear, not post-trained-vs-post-trained.</li>
+          <li><strong>No hybrid architectures:</strong> "We did not consider hybrid models with some tokens
+          or entire layers using full-attention (FA)" &mdash; despite hybrid SWA/full-attention layouts
+          being common in deployed models.</li>
+          <li><strong>Scale:</strong> the analysis stops at 70B and standard benchmarks; the paper flags
+          extension to "extremely large models and complex metrics, such as agentic tasks" as future work.</li>
+          <li><strong>No multimodal evaluation:</strong> no coverage of multimodal LLMs or video generation
+          models.</li>
+          <li><strong>No budget-matched scaling laws:</strong> the paper does not sweep linear-attention
+          post-training token budgets to characterize where (if anywhere) more post-training compute closes
+          the gap to SWA.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="sources">
+      <div class="section-inner">
+        <div class="eyebrow">13 &middot; Sources &amp; what's exact vs. constructed</div>
+        <h2>Provenance</h2>
+        <ul class="src-list">
+          <li><strong>Sliding-window beats linear attention</strong> &mdash; Jolicoeur-Martineau,
+          Sukthanker, Cameron, Gervais. <span class="mono">arXiv:2608.28444</span>. All numbered
+          equations, the SWA(w,s) definition, Table 1&ndash;5 figures, and the &sect;5 limitations above are
+          transcribed from the paper's own text and tables (via its arXiv HTML rendering), not paraphrased
+          from a secondary summary.</li>
+        </ul>
+        <div class="callout">
+          <p><strong>Exact to the paper:</strong> &sect;2.1's full-attention formula, &sect;2.2's SWA(w,s)
+          formula and sink description, &sect;2.3's linear-attention recurrence and Hedgehog <code>&phi;</code>
+          example, every number in the &sect;05 baseline table and the &sect;07&ndash;09 results tables, the
+          hardware/model spec in &sect;10, and the &sect;12 limitations list.</p>
+        </div>
+        <div class="callout">
+          <p><strong>Constructed for this primer:</strong> the index-set notation
+          <code>&Iscr;(t)</code> in &sect;03 (the paper describes SWA(w,s) in prose; this primer writes it
+          as an explicit set for precision, then verifies it matches the prose exactly), the live mask
+          visualizer, and the &sect;11 worked example's specific numbers (the paper doesn't publish a
+          toy numeric example at this scale).</p>
+        </div>
+
+        <hr class="rule">
+
+        <h2>Areas this primer would flag for improvement</h2>
+        <p style="color:var(--ink-faint); font-size:.85rem;">The following is this primer's own commentary
+        on the paper &mdash; not the paper's text, and not a criticism of the arithmetic or transcription
+        above, all of which is verified against the source. These are methodological gaps worth keeping in
+        mind before treating "SWA beats linear attention" as a closed question.</p>
+        <ol class="improve-list">
+          <li><span class="tag critique">uneven compute budgets</span> The post-training token budgets
+          compared range from 20M (Liger-GLA) to 100B (SUPRA) &mdash; a 5000x spread &mdash; yet SWA is
+          compared against all of them with a single zero-token configuration. SWA still wins in most cases,
+          which is the paper's real finding, but the comparison doesn't establish where on that 20M&ndash;100B
+          spectrum a linear method would need to sit to close the gap; a budget-matched sweep (flagged as
+          future work in &sect;5 anyway) would make the "wins despite/because of zero training cost" claim
+          sharper.</li>
+          <li><span class="tag critique">sink count never ablated</span> Window size <code>w</code> is swept
+          across four values ({64,128,256,512}), but sink count <code>s</code> is held fixed at 4 throughout
+          every experiment. Given how load-bearing the sink mechanism is for avoiding early-token loss
+          (&sect;04), a small ablation over <code>s &isin; {0,1,2,4,8}</code> would clarify how much of SWA's
+          advantage comes from the window vs. from the sinks specifically &mdash; especially since <code>s=0</code>
+          reduces to a pure local window, whose failure mode the paper only describes qualitatively.</li>
+          <li><span class="tag critique">hybrid layouts excluded by design, but they're the deployed norm</span>
+          Several widely-used production models (e.g. Gemma's interleaved local/global attention, GPT-OSS-style
+          layouts) already mix SWA layers with periodic full-attention layers specifically to recover
+          long-range recall while keeping most layers cheap. The paper explicitly scopes this out
+          (&sect;5), which is a reasonable scoping decision for a first head-to-head, but it means the
+          reported S-NIAH/BABILong numbers describe pure-SWA's ceiling, not the hybrid configurations most
+          likely to actually be deployed &mdash; a comparison against hybrid SWA and against hybrid
+          linear-attention stacks (linear layers + periodic full attention) would be the natural follow-up.</li>
+          <li><span class="tag critique">O(1) for linear attention undersells its real per-step cost</span>
+          The paper (and this primer, following it) states linear attention's inference cost as
+          <code>O(1)</code> in <code>L</code>, which is correct with respect to sequence length &mdash; but
+          the state <code>s<sub>t</sub></code> is a <code>d&times;d</code> (or feature-dim-squared) matrix,
+          so the actual per-step cost scales with the feature dimension, and larger feature maps (needed for
+          better softmax approximation) trade solved sequence-length-dependence for a fixed but nontrivial
+          quadratic-in-<code>d</code> cost. Reporting a wall-clock-normalized comparison against SWA's
+          <code>O(w&middot;d)</code> at matched accuracy, rather than just an asymptotic order, would make
+          the speed claim in &sect;10 more directly comparable.</li>
+          <li><span class="tag critique">small-scale speed benchmark for a large-scale claim</span>
+          &sect;4.3's throughput/memory numbers come from a 4-layer, <code>d=64</code>, batch-1 model &mdash;
+          useful for isolating the mechanism, but memory-bandwidth bottlenecks, kernel fusion opportunities,
+          and batching effects all shift meaningfully at production scale (multi-billion-parameter models,
+          batch &gt; 1, tensor/pipeline parallelism). The paper's own accuracy results span up to 70B; the
+          speed results don't, and a reader shouldn't assume the two curves extrapolate identically.</li>
+        </ol>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="footer-note">
+  Companion primer in the same repository as
+  <a href="../rdkv/rdkv-primer.html">the RDKV primer</a> and
+  <a href="../rabitq/rabitq-primer.html">the RaBitQ primer</a> &mdash; all three attack the KV-cache /
+  long-context cost problem from different angles: RDKV and RaBitQ compress <em>what's kept</em> in the
+  cache, this paper's SWA changes <em>how much</em> is kept in the first place, as an alternative to
+  approximating attention's kernel entirely (linear attention).
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ---------- theme toggle ---------- */
+var root=document.documentElement;
+var stored=null;
+try{ stored=localStorage.getItem('swa-linear-theme'); }catch(e){}
+if(stored) root.setAttribute('data-theme', stored);
+document.getElementById('themeToggle').addEventListener('click', function(){
+  var cur=root.getAttribute('data-theme');
+  var next = cur==='dark' ? 'light' : (cur==='light' ? null : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'light':'dark'));
+  if(next){ root.setAttribute('data-theme', next); } else { root.removeAttribute('data-theme'); }
+  try{ localStorage.setItem('swa-linear-theme', next || ''); }catch(e){}
+});
+
+/* ---------- TOC active-section tracking ---------- */
+var tocLinks=Array.prototype.slice.call(document.querySelectorAll('.toc-list a'));
+var sections=tocLinks.map(function(a){ return document.querySelector(a.getAttribute('href')); });
+function updateActive(){
+  var y=window.scrollY+120;
+  var idx=0;
+  for(var i=0;i<sections.length;i++){ if(sections[i] && sections[i].offsetTop<=y) idx=i; }
+  tocLinks.forEach(function(a,i){ a.classList.toggle('active', i===idx); });
+}
+window.addEventListener('scroll', updateActive, {passive:true});
+updateActive();
+
+/* ============================================================
+   SWA(w,s) index set, exactly as derived in §03:
+   I(t) = {1,...,s} ∪ {max(s+1, t-(w-s)+1), ..., t}
+   Sinks fixed at s=4 in the paper; kept adjustable here (default
+   s=2 in the demo purely so the effect is visible at small L).
+   ============================================================ */
+var N=16, S_FIXED=2;
+function swaIndexSet(t, w, s){
+  var out=new Set();
+  for(var i=1;i<=Math.min(s,t);i++) out.add(i);
+  var winStart=Math.max(s+1, t-(w-s)+1);
+  for(var i=winStart;i<=t;i++) out.add(i);
+  return out;
+}
+
+var maskRow=document.getElementById('maskRow');
+var tSlider=document.getElementById('maskT');
+var wSlider=document.getElementById('maskW');
+var maskLbl=document.getElementById('maskLbl');
+var tVal=document.getElementById('maskTVal');
+var wVal=document.getElementById('maskWVal');
+
+function renderMask(){
+  var t=parseInt(tSlider.value,10);
+  var w=parseInt(wSlider.value,10);
+  var s=Math.min(S_FIXED, w);
+  var idx=swaIndexSet(t,w,s);
+  maskRow.innerHTML='';
+  for(var i=1;i<=N;i++){
+    var cell=document.createElement('div');
+    cell.className='mask-cell';
+    cell.textContent=i;
+    if(i<=t && idx.has(i)){
+      cell.classList.add(i<=s ? 'sink' : 'window');
+    } else if(i>t){
+      cell.style.opacity='0.25';
+    }
+    if(i===t) cell.classList.add('query');
+    maskRow.appendChild(cell);
+  }
+  tVal.textContent=t; wVal.textContent=w;
+  maskLbl.textContent='w='+w+', s='+s+', t='+t;
+}
+tSlider.addEventListener('input', renderMask);
+wSlider.addEventListener('input', renderMask);
+renderMask();
+
+})();
+</script>
