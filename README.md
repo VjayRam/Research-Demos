@@ -57,4 +57,6 @@ RDKV treats KV cache eviction and quantization as the same operation — bit-wid
 
 **Disclosed approximation**: the empirically-calibrated per-coordinate distortion table from the paper's Appendix B is stood in for by the analytic Bennett curve `σ_u · 2^(−b)`; see [`rdkv/README.md`](rdkv/README.md).
 
+**Disclosed gap**: TriZone's Zone A(V) rows are grouped by target bit-width but not yet actually quantized or byte-packed (full float32 storage); only Zone A(K) is really quantized. See [`rdkv/README.md`](rdkv/README.md).
+
 See [`rdkv/rdkv-primer.html`](rdkv/rdkv-primer.html) for the math derivation, [`docs/superpowers/specs/2026-08-31-rdkv-design.md`](docs/superpowers/specs/2026-08-31-rdkv-design.md) for the full spec, and [`rdkv/README.md`](rdkv/README.md) for install/test instructions.

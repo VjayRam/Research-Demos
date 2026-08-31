@@ -21,6 +21,14 @@ dequantized FP16 K tile for the packed zone. Requires the `kernel` extra
 and CUDA; falls back to a clear `RuntimeError` (not a silent CPU fallback)
 otherwise.
 
+**Disclosed gap (Zone A(V)):** Zone A's K rows are really quantized
+(per-channel affine, packed as integers). Zone A's V rows are only
+*grouped* by their target bit-width (2/4/8) -- they are still stored at
+full float32 precision, not actually quantized or byte-packed. The
+compression this implies for V is not yet realized; real V
+quantization/byte-packing is follow-up work. See `rdkv/trizone.py`'s
+`PackedCache.zone_a_v` field comment for the same disclosure in code.
+
 **Disclosed approximation (both phases):** `ε_u(b)` is the analytic
 Bennett curve `σ_u · 2^(−b)`, standing in for the paper's
 empirically-calibrated per-coordinate distortion table (Appendix B). This
