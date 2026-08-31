@@ -3,14 +3,19 @@
 Fuses Zone A's algebraic K dequantization directly into the attention
 score computation:
 
-    q_tau^T k_hat_t = sum_c (s_c * q_{tau,c}) * k_tilde_{t,c}  - bias
+    q_tau^T k_hat_t = sum_c (s_c * q_{tau,c}) * k_tilde_{t,c}  + bias
 
-where k_hat_{t,c} = s_c*(k_tilde_{t,c} - z_c) is the per-channel affine
-dequantization (see rdkv.trizone's k_scale/k_zero_point), so
-q_tau^T k_hat_t = sum_c s_c*q_{tau,c}*k_tilde_{t,c} - sum_c s_c*q_{tau,c}*z_c.
-The second term is a single per-query-head bias, computed once and
-subtracted from every score -- never requiring a materialized FP16 K
-tile for Zone A. This is the module Task 12's structural-memory test
+where k_hat_{t,c} = s_c*k_tilde_{t,c} + z_c is the per-channel affine
+dequantization actually used by rdkv.trizone.pack_trizone (dequant =
+quantized*scale + zero_point, with zero_point stored in the column's
+original value units -- see trizone.py's k_scale/k_zero_point and
+_affine_quantize_channel), so
+q_tau^T k_hat_t = sum_c s_c*q_{tau,c}*k_tilde_{t,c} + sum_c q_{tau,c}*z_c.
+The second term is a single per-query-head bias (using the UNSCALED
+q_{tau,c}, since z_c is already in original value units, not
+scale-normalized), computed once and added to every score -- never
+requiring a materialized FP16 K tile for Zone A. This is the module
+Task 12's structural-memory test
 (test_fused_kernel_does_not_materialize_dequantized_k_tile) checks.
 
 One program per decode step (the batch here is n_kept -- the whole point
@@ -41,11 +46,14 @@ def _fused_score_kernel(
     stride_k_row,
     N, D: tl.constexpr, BLOCK_N: tl.constexpr, BLOCK_D: tl.constexpr,
 ):
-    """scores[n] = sum_d q_scaled[d] * k_tilde[n, d] - bias, for a block of
+    """scores[n] = sum_d q_scaled[d] * k_tilde[n, d] + bias, for a block of
     N (Zone A's kept-token) rows. q_scaled[d] = s_d * q_tau[d] is
     precomputed on the host (cheap, O(d)) so the kernel's inner loop is a
     a plain dot product against the still-quantized-integer k_tilde -- no
-    K dequantization happens inside or outside this kernel."""
+    K dequantization happens inside or outside this kernel. bias =
+    sum_d q_tau[d] * z_d (UNSCALED q, since dequant = s*k_tilde + z uses
+    z in original value units, not scale-normalized -- see module
+    docstring)."""
     pid_n = tl.program_id(0)
     offs_n = pid_n * BLOCK_N + tl.arange(0, BLOCK_N)
     offs_d = tl.arange(0, BLOCK_D)
@@ -54,13 +62,18 @@ def _fused_score_kernel(
     mask_2d = mask_n[:, None] & mask_d[None, :]
 
     q_scaled = tl.load(q_scaled_ptr + offs_d, mask=mask_d, other=0.0)
-    k_tilde = tl.load(
-        k_tilde_ptr + offs_n[:, None] * stride_k_row + offs_d[None, :], mask=mask_2d, other=0.0
+    # k_tilde is loaded straight from the native quantized-integer buffer
+    # (int64) -- the int->float cast happens HERE, inside the kernel, on
+    # the loaded register tile only. No fp32/fp16 dequantized copy of the
+    # (n_kept, d) tile is ever materialized in global memory.
+    k_tilde_int = tl.load(
+        k_tilde_ptr + offs_n[:, None] * stride_k_row + offs_d[None, :], mask=mask_2d, other=0
     )
+    k_tilde = k_tilde_int.to(tl.float32)
     bias = tl.load(bias_ptr)
 
     raw_score = tl.sum(k_tilde * q_scaled[None, :], axis=1)
-    score = raw_score - bias
+    score = raw_score + bias
     tl.store(scores_ptr + offs_n, score, mask=mask_n)
 
 
@@ -80,10 +93,16 @@ def _fused_zone_a_scores(q_tau: torch.Tensor, packed) -> torch.Tensor:
     # (spec Sec 9: "permute q to match"), then pre-scaled by s_c.
     q_permuted = q_tau[packed.k_channel_perm]
     q_scaled = (q_permuted * packed.k_scale).contiguous()
-    # bias = sum_c s_c * q_{tau,c} * z_c, a single per-query-head scalar.
-    bias = (q_scaled * packed.k_zero_point).sum().reshape(1)
+    # bias = sum_c q_{tau,c} * z_c (UNSCALED q -- z_c is already in the
+    # column's original value units, not scale-normalized; see module
+    # docstring), a single per-query-head scalar, ADDED to every score.
+    bias = (q_permuted * packed.k_zero_point).sum().reshape(1)
 
-    k_tilde = packed.zone_a_k.to(device).float().contiguous()
+    # Keep zone_a_k in its native quantized-integer dtype -- the int->float
+    # cast happens inside the Triton kernel (_fused_score_kernel), never
+    # here on the host, so no materialized fp32/fp16 dequantized copy of
+    # the (n_kept, d) tile is ever allocated.
+    k_tilde = packed.zone_a_k.to(device).contiguous()
     scores = torch.empty(n_kept, device=device, dtype=torch.float32)
     block_d = triton.next_power_of_2(d)
     block_n = _BLOCK_N
