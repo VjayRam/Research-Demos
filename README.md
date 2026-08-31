@@ -48,3 +48,11 @@ for the full diagnosis.
 
 See [`seq-attention/README.md`](seq-attention/README.md) for the ISOLET
 result's diagnosis and how to reproduce these numbers.
+
+### RDKV -- Joint Eviction and Quantization of the KV Cache ([`rdkv/`](rdkv/)) — *in progress*
+
+**Paper**: [Rate-Distortion Bit Allocation for Joint Eviction and Quantization of the KV Cache](https://arxiv.org/abs/2605.08317) (arXiv:2605.08317)
+
+RDKV treats KV cache eviction and quantization as the same operation — bit-width assignment — evaluated at different depths (0 bits = evicted). Implementation in progress: per-token rate-distortion weight computation, MCKP (Lagrangian bisection) bit-width allocation under a global bit budget, and TriZone packing for uniform-precision GPU kernel segments.
+
+See [`rdkv/rdkv-primer.html`](rdkv/rdkv-primer.html) for the math derivation and algorithm walkthrough; implementation and results to follow.
