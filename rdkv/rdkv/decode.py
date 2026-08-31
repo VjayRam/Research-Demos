@@ -42,23 +42,34 @@ def packed_decode(
     else:
         k_zone_a = torch.empty(0, d)
 
-    # Zone A's V rows: concatenate the {2,4,8}-bit sub-segments back in
-    # kept-token order is not required for a decode-step sum (order-
-    # independent softmax-weighted sum), so we just concatenate.
-    zone_a_v_parts = [seg for seg in packed.zone_a_v.values() if seg.shape[0] > 0]
+    # Zone A's V rows: concatenate the {2,4,8}-bit sub-segments in the
+    # dict's iteration order. NOTE: this concatenation order does NOT match
+    # ascending-original-token-index order overall (tokens interleave across
+    # bit-widths), so the K rows fed into the Zone A(V) score computation
+    # must be gathered in this SAME per-bit-width order -- not in
+    # zone_a_k's ascending-kept-token-index order -- or K/V rows for
+    # different tokens get paired together.
+    zone_a_v_parts = []
+    k_for_zone_a_v_parts = []
+    for bits, seg in packed.zone_a_v.items():
+        if seg.shape[0] == 0:
+            continue
+        zone_a_v_parts.append(seg)
+        # kept_token_idx and zone_a_v_token_idx[bits] are both ascending, so
+        # searchsorted recovers each token's row index into zone_a_k/k_zone_a.
+        rows = torch.searchsorted(packed.kept_token_idx, packed.zone_a_v_token_idx[bits])
+        k_for_zone_a_v_parts.append(k_zone_a[rows])
     v_zone_a = torch.cat(zone_a_v_parts, dim=0) if zone_a_v_parts else torch.empty(0, d)
-    # k_zone_a rows correspond to ALL kept tokens (Zone A(K) covers every
-    # kept token, per spec Sec 8's Zone A definition), while v_zone_a only
-    # covers the non-16-bit subset -- so the K used for Zone A's V-weighted
-    # sum must be restricted to the same non-16-bit token subset.
+    k_for_zone_a_v = (
+        torch.cat(k_for_zone_a_v_parts, dim=0) if k_for_zone_a_v_parts else torch.empty(0, d)
+    )
     n_16bit = packed.zone_b_v.shape[0]
     n_non16bit = n_kept - n_16bit
-    # zone_a_k's row order is: all kept tokens in original packing order is
-    # NOT guaranteed here since trizone.py builds zone_a_k from `kept`
-    # directly (see Task 10) -- so we must select the same non-16-bit rows.
-    # This selection mirrors trizone.py's zone_b_mask/zone_a_v construction.
+    # Zone B's K rows are still selected via the boolean mask over zone_a_k's
+    # ascending-kept-token order -- zone_b_v is already in that same
+    # ascending order (built as v[zone_b_token_idx] with zone_b_token_idx a
+    # subsequence of kept), so this side of the split needs no realignment.
     non16_selector = _non16bit_row_selector(packed)
-    k_for_zone_a_v = k_zone_a[non16_selector]
 
     scores_parts = []
     values_parts = []

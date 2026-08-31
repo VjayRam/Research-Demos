@@ -33,6 +33,8 @@ class PackedCache:
     zone_b_v: torch.Tensor  # (n_16bit, d) FP16 V rows
     zone_b_token_idx: torch.Tensor  # original token indices of Zone B rows
     zone_b_mask: torch.Tensor  # (n_kept,) bool, True where the kept token is 16-bit (Zone B)
+    kept_token_idx: torch.Tensor  # (n_kept,) ascending original token indices, one per zone_a_k row
+    zone_a_v_token_idx: dict[int, torch.Tensor]  # bit_width -> original token indices for that zone_a_v segment, same row order as zone_a_v[bits]
     k_channel_perm: torch.Tensor  # (d,) permutation applied to K's channel axis
     k_scale: torch.Tensor  # (d,) per-channel affine quantization scale s_c
     k_zero_point: torch.Tensor  # (d,) per-channel affine quantization zero point z_c
@@ -68,10 +70,12 @@ def pack_trizone(k: torch.Tensor, v: torch.Tensor, allocation: AllocationResult)
 
     # Zone A(V): kept, non-16-bit V rows, split into per-bit-width sub-segments.
     zone_a_v: dict[int, torch.Tensor] = {}
+    zone_a_v_token_idx: dict[int, torch.Tensor] = {}
     for bits in _ZONE_A_V_BITS:
         mask = b_v_kept == bits
         idx = kept[mask]
         zone_a_v[bits] = v[idx]
+        zone_a_v_token_idx[bits] = idx
 
     # Zone A(K): every kept token's K row, with channels permuted by b_k ascending
     # (spec Sec 9: "sort channels by b_c^K into segments; permute q to match").
@@ -95,6 +99,8 @@ def pack_trizone(k: torch.Tensor, v: torch.Tensor, allocation: AllocationResult)
         zone_b_v=zone_b_v,
         zone_b_token_idx=zone_b_token_idx,
         zone_b_mask=zone_b_mask,
+        kept_token_idx=kept,
+        zone_a_v_token_idx=zone_a_v_token_idx,
         k_channel_perm=k_channel_perm,
         k_scale=k_scale,
         k_zero_point=k_zero_point,
