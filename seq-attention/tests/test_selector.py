@@ -11,7 +11,7 @@ def _make_sparse_regression_problem(seed=0, n=200, d=10, true_idx=(1, 4, 6)):
     for i, idx in enumerate(true_idx):
         true_coef[idx] = 3.0 - i
     y = X @ true_coef
-    return X, y, set(true_idx)
+    return X, y, list(true_idx)
 
 
 def mse_loss(y_pred, y_true):
@@ -25,7 +25,7 @@ def test_select_features_naive_recovers_ground_truth_support():
         loss_fn=mse_loss,
         X=X, y=y, k=3, train_steps=300, lr=0.1, seed=0,
     )
-    assert set(selected) == true_support
+    assert selected == true_support
 
 
 def test_select_features_naive_grows_by_one_per_phase_no_repeats():

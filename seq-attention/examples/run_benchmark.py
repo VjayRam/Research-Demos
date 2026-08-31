@@ -44,9 +44,11 @@ def evaluate(model, X, y) -> float:
 def pin_selected_features(model):
     """Marks every feature in `model` as selected, so the mask's softmax
     gate degenerates to an all-ones vector (no unselected features remain to
-    leak softmax mass onto). `model` must already be sized to exactly the
-    selected feature count -- see `run_dataset`, which slices X down to the
-    selected columns before constructing this model."""
+    leak softmax mass onto). Used both for the baseline model (full feature
+    width, all features pinned so it sees an unscaled pass-through of every
+    input) and for the selected-feature model in `run_dataset` (sized to
+    exactly the selected feature count, with X already sliced down to those
+    columns)."""
     with torch.no_grad():
         for idx in range(model.mask.num_features):
             model.mask.select(idx)
@@ -62,10 +64,10 @@ def run_dataset(name, loader, num_features, num_classes, k, hidden_dim, seed=0):
 
     torch.manual_seed(seed)
     baseline = AttentionGatedMLP(num_features, hidden_dim, num_classes, seed=seed).to(DEVICE)
+    baseline = pin_selected_features(baseline)
     baseline = train_classifier(baseline, X_train, y_train)
     baseline_acc = evaluate(baseline, X_test, y_test)
 
-    y_train_float = y_train.float()
     selector_model_fn = lambda seed_: AttentionGatedMLP(num_features, hidden_dim, num_classes, seed=seed_).to(DEVICE)
     selected = select_features_onepass(
         model_factory=selector_model_fn,

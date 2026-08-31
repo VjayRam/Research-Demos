@@ -22,10 +22,17 @@ def mse_loss(y_pred: torch.Tensor, y_true: torch.Tensor) -> torch.Tensor:
     return torch.mean((y_pred - y_true) ** 2)
 
 
-def build_problem() -> tuple[torch.Tensor, torch.Tensor]:
+def build_problem(correlated: bool = False) -> tuple[torch.Tensor, torch.Tensor]:
     generator = torch.Generator().manual_seed(SEED)
     A = torch.randn(N, D, generator=generator)
-    X, _ = torch.linalg.qr(A)
+    if correlated:
+        # No QR step: columns of a raw Gaussian design matrix are only
+        # approximately orthogonal, so this exercises the theorem's more
+        # interesting correlated-feature regime rather than the trivial
+        # orthonormal case (where OMP's residual refit is exact).
+        X = A
+    else:
+        X, _ = torch.linalg.qr(A)
     true_coef = torch.zeros(D)
     for idx, coef in zip(TRUE_IDX, TRUE_COEF):
         true_coef[idx] = coef
@@ -33,8 +40,7 @@ def build_problem() -> tuple[torch.Tensor, torch.Tensor]:
     return X, y
 
 
-def main():
-    X, y = build_problem()
+def run_demo(X: torch.Tensor, y: torch.Tensor) -> None:
     print(f"True generating features: {sorted(TRUE_IDX)}\n")
 
     omp_selected = orthogonal_matching_pursuit(X, y, k=K)
@@ -49,8 +55,18 @@ def main():
     )
     print(f"Sequential Attention selected: {attention_selected}")
 
-    all_match = set(omp_selected) == set(lasso_selected) == set(attention_selected)
-    print(f"\nAll three agree: {all_match}")
+    all_match = omp_selected == lasso_selected == attention_selected
+    print(f"\nAll three agree on the same feature sequence: {all_match}")
+
+
+def main():
+    print("=== Orthonormal design (QR'd) ===")
+    X, y = build_problem(correlated=False)
+    run_demo(X, y)
+
+    print("\n=== Correlated design (raw Gaussian, not orthonormalized) ===")
+    X, y = build_problem(correlated=True)
+    run_demo(X, y)
 
 
 if __name__ == "__main__":

@@ -10,7 +10,12 @@ import torch
 def orthogonal_matching_pursuit(X: torch.Tensor, y: torch.Tensor, k: int) -> list[int]:
     """Greedily picks the unselected column of X most correlated with the
     current residual, then re-solves least squares over all selected
-    columns to update the residual before the next pick."""
+    columns to update the residual before the next pick.
+
+    Assumes the columns of X are unit-norm (or near-unit-norm): the
+    correlation-based selection rule below (raw dot products, not
+    normalized by column norm) only behaves like standard OMP when column
+    scales are comparable, since it does not normalize internally."""
     selected: list[int] = []
     residual = y.clone()
     for _ in range(k):
@@ -33,9 +38,9 @@ def sequential_lasso(
     n, d = X.shape
     selected: list[int] = []
     for _ in range(k):
-        coef = torch.zeros(d, requires_grad=True)
+        coef = torch.zeros(d, requires_grad=True, device=X.device)
         optimizer = torch.optim.Adam([coef], lr=lr)
-        unselected_mask = torch.ones(d, dtype=torch.bool)
+        unselected_mask = torch.ones(d, dtype=torch.bool, device=X.device)
         unselected_mask[selected] = False
         for _ in range(steps):
             optimizer.zero_grad()

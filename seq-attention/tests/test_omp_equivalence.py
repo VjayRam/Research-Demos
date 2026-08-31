@@ -43,4 +43,4 @@ def test_omp_sequential_lasso_and_sequential_attention_agree_on_orthonormal_desi
         model_factory=lambda seed: LinearRegressionModel(num_features=X.shape[1], seed=seed),
         loss_fn=mse_loss, X=X, y=y, k=3, train_steps_per_phase=300, lr=0.1, seed=0,
     )
-    assert set(omp_selected) == set(lasso_selected) == set(attention_selected) == set(true_idx)
+    assert omp_selected == lasso_selected == attention_selected == list(true_idx)
