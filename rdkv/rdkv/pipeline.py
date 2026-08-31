@@ -1,10 +1,11 @@
 """Sec 7 / Algorithm 1 Stages 1-3 (spec): the three-stage allocation
 pipeline, run once per layer-head pair immediately after prefill.
 
-Stage 4 (TriZone packing, Algorithm 1's final stage) is out of scope for
-this phase -- see spec Sec 14, decision 1. This module stops at producing
-the per-token V bit-widths and per-channel K bit-widths; packing them into
-TriZone storage is Phase 2.
+This module stops at producing the per-token V bit-widths and per-channel
+K bit-widths (Stages 1-3). Stage 4 (TriZone packing, Algorithm 1's final
+stage) now lives in rdkv.trizone (pack_trizone), consuming this module's
+AllocationResult; packed decode lives in rdkv.decode and, for the fused
+GPU kernel, rdkv.kernel.fused_decode.
 """
 
 from dataclasses import dataclass
@@ -12,7 +13,7 @@ from dataclasses import dataclass
 import torch
 
 from .mckp import mckp_bisect
-from .weights import bennett_sigma, channel_weight_k, token_weight_v
+from .weights import channel_weight_k, token_weight_v
 
 
 @dataclass
