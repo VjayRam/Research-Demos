@@ -90,7 +90,7 @@ Candidate explanations for why selected-feature accuracy trails baseline
 here (opposite of the paper's Table 2), tested as standalone diagnostic
 experiments — not adopted into `run_benchmark.py` itself, since each
 applies a *symmetric* change to both baseline and selected models to
-isolate its effect on the gap:
+isolate its effect on the gap (except where noted):
 
 - **Baseline over-training (falsified).** Hypothesis: the fixed 2000-step,
   no-regularization training budget lets the baseline over-fit relative to
@@ -103,6 +103,27 @@ isolate its effect on the gap:
   smoothly enough that validation loss rarely plateaus early within 2000
   steps, so this is not the driver of the baseline's advantage. CSV:
   [`examples/results/run_benchmark_earlystop_experiment_20260831_131827.csv`](examples/results/run_benchmark_earlystop_experiment_20260831_131827.csv).
+- **First-layer capacity mismatch (confirmed — the main lever found so
+  far; the one asymmetric experiment here).** Hypothesis: with a shared
+  `hidden_dim=256`, the baseline's first layer has `num_features *
+  hidden_dim` parameters (e.g. 784*256 on MNIST) versus the selected
+  model's `k * hidden_dim` (50*256) — a 15.7x difference unrelated to how
+  much real signal the extra features carry. Tested by shrinking *only*
+  the baseline's `hidden_dim` so its first layer has (approximately) the
+  same parameter count as the selected model's: `hidden_dim_baseline =
+  round(k * hidden_dim / num_features)` (`examples/run_benchmark_capacity_matched.py`;
+  16 for MNIST/Fashion-MNIST, 21 for ISOLET). Result: the gap closed 80%
+  on MNIST (0.9782 → 0.9484 vs. selected's 0.9409) and **flipped on
+  Fashion-MNIST** (0.8561 baseline vs. 0.8602 selected — selection wins,
+  matching the paper's direction), with a smaller 19% narrowing on ISOLET
+  (0.9532 → 0.9448 vs. 0.9089). This is the strongest evidence so far that
+  this reproduction's baseline was simply over-provisioned relative to the
+  selected model, not that the extra features carry proportionally more
+  signal. Not folded into `run_benchmark.py` as the new default, since the
+  paper's own baseline architecture (Table 2's exact hidden width) hasn't
+  been verified — this parameter-matching heuristic is one plausible way
+  to approach it, not confirmed to be *the* way. CSV:
+  [`examples/results/run_benchmark_capacity_matched_experiment_20260831_133343.csv`](examples/results/run_benchmark_capacity_matched_experiment_20260831_133343.csv).
 
 ## File structure
 
