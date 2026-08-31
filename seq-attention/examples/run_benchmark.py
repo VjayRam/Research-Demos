@@ -22,6 +22,8 @@ DATASETS = {
     "isolet": (load_isolet, 617, 26, 50, 256),
 }
 
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 def train_classifier(model, X, y, steps=2000, lr=1e-3):
     optimizer = torch.optim.Adam(model.body.parameters(), lr=lr)
@@ -55,26 +57,28 @@ def pin_selected_features(model):
 def run_dataset(name, loader, num_features, num_classes, k, hidden_dim, seed=0):
     X_train, y_train = loader(train=True)
     X_test, y_test = loader(train=False)
+    X_train, y_train = X_train.to(DEVICE), y_train.to(DEVICE)
+    X_test, y_test = X_test.to(DEVICE), y_test.to(DEVICE)
 
     torch.manual_seed(seed)
-    baseline = AttentionGatedMLP(num_features, hidden_dim, num_classes, seed=seed)
+    baseline = AttentionGatedMLP(num_features, hidden_dim, num_classes, seed=seed).to(DEVICE)
     baseline = train_classifier(baseline, X_train, y_train)
     baseline_acc = evaluate(baseline, X_test, y_test)
 
     y_train_float = y_train.float()
-    selector_model_fn = lambda seed_: AttentionGatedMLP(num_features, hidden_dim, num_classes, seed=seed_)
+    selector_model_fn = lambda seed_: AttentionGatedMLP(num_features, hidden_dim, num_classes, seed=seed_).to(DEVICE)
     selected = select_features_onepass(
         model_factory=selector_model_fn,
         loss_fn=lambda y_pred, y_true: torch.nn.functional.cross_entropy(y_pred, y_true.long()),
         X=X_train, y=y_train, k=k, train_steps_per_phase=200, lr=1e-3, seed=seed,
     )
 
-    selected_idx = torch.tensor(selected, dtype=torch.long)
+    selected_idx = torch.tensor(selected, dtype=torch.long, device=DEVICE)
     X_train_selected = X_train[:, selected_idx]
     X_test_selected = X_test[:, selected_idx]
 
     torch.manual_seed(seed)
-    selected_model = AttentionGatedMLP(len(selected), hidden_dim, num_classes, seed=seed)
+    selected_model = AttentionGatedMLP(len(selected), hidden_dim, num_classes, seed=seed).to(DEVICE)
     selected_model = pin_selected_features(selected_model)
     selected_model = train_classifier(selected_model, X_train_selected, y_train)
     selected_acc = evaluate(selected_model, X_test_selected, y_test)
