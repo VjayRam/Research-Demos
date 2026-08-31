@@ -36,13 +36,15 @@ paper's Table 2 on MNIST, Fashion-MNIST, and ISOLET.
 
 | Dataset | Baseline (all features) | Sequential Attention (k=50) | Paper (Table 2) |
 |---|---|---|---|
-| MNIST | 0.9033 | 0.9409 | 0.944 → 0.956 |
-| Fashion-MNIST | 0.7990 | 0.8602 | 0.843 → 0.854 |
-| ISOLET | 0.9294 | 0.9089 | 0.866 → 0.920 |
+| MNIST | 0.9782 | 0.9409 | 0.944 → 0.956 |
+| Fashion-MNIST | 0.8876 | 0.8602 | 0.843 → 0.854 |
+| ISOLET | 0.9532 | 0.9089 | 0.866 → 0.920 |
 
-Run on the project's RTX 4070; MNIST/Fashion-MNIST reproduce the paper's
-direction (selected features beat the full-feature baseline) at somewhat
-lower absolute accuracy given this project's untuned single-run MLP.
+Run on the project's RTX 4070. Selected-feature accuracy trails the
+full-feature baseline on all three datasets here (unlike the paper),
+attributed to this project's untuned single-run MLP rather than a
+selection bug — see [`seq-attention/README.md`](seq-attention/README.md)
+for the full diagnosis.
 
 See [`seq-attention/README.md`](seq-attention/README.md) for the ISOLET
 result's diagnosis and how to reproduce these numbers.

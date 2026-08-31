@@ -33,29 +33,56 @@ hyperparameters; no per-dataset search, per this project's scope).
 
 | Dataset | Baseline (all features) | Sequential Attention (k=50) | Paper (Table 2) |
 |---|---|---|---|
-| MNIST | 0.9033 | 0.9409 | 0.944 -> 0.956 |
-| Fashion-MNIST | 0.7990 | 0.8602 | 0.843 -> 0.854 |
-| ISOLET | 0.9294 | 0.9089 | 0.866 -> 0.920 |
+| MNIST | 0.9782 | 0.9409 | 0.944 -> 0.956 |
+| Fashion-MNIST | 0.8876 | 0.8602 | 0.843 -> 0.854 |
+| ISOLET | 0.9532 | 0.9089 | 0.866 -> 0.920 |
 
-MNIST and Fashion-MNIST reproduce the paper's qualitative result (selected
-features outperform the full-feature baseline) at somewhat lower absolute
-accuracy than the paper, consistent with this project's simpler,
-single-run, untuned MLP versus the paper's more heavily tuned setup.
+Selected-feature accuracy comes in below the full-feature baseline on all
+three datasets, unlike the paper's Table 2 (where the selected 50 features
+*beat* the full-feature baseline on every dataset). This is a real,
+honestly-reported shortfall of this reproduction, not an artifact: an
+earlier version of this table had baseline numbers depressed by a bug (the
+baseline model's feature mask was left untrained/unpinned, so it trained
+through a near-uniform ~1/num_features gate instead of a genuine
+full-feature pass — caught in review, fixed, and this table re-run after
+the fix). With the bug fixed, the full-feature baseline is a strong
+classifier in its own right (as expected — an MLP with all pixels/features
+available has strictly more information than one restricted to 50), and
+this project's simple, single-run, untuned selection setup isn't enough to
+close that gap. The paper's own result likely depends on the extensive
+per-dataset hyperparameter tuning this project deliberately doesn't do
+(see Non-Goals in the design spec) plus possibly other regularization
+choices not reproduced here.
 
-ISOLET's `k=50` result comes in *below* its full-feature baseline
-(0.9089 vs 0.9294) rather than above it, unlike the paper and unlike the
-other two datasets. This was checked as a possible bug before being
-recorded here: the 50 selected features are all unique (no duplicate
-selection), and substituting 50 *random* features in the same pipeline
-scores only 0.83-0.85 across three random seeds — meaningfully worse than
-the 50 selected features, confirming the selection procedure is doing real
-work. The shortfall against ISOLET's own full-feature baseline is
-attributed to reducing 617 features to 50 on a harder 26-class task with
-this project's small, untuned MLP, not a defect in `select_features_onepass`
-or `pin_selected_features`.
+The selection procedure itself is still verified to be doing real,
+non-random work: substituting 50 *random* ISOLET features into the same
+training pipeline scores only 0.83-0.85 across three random seeds, well
+below the actual selected features' 0.9089 — the gap to baseline is a
+"selected 50 features isn't enough signal, at these hyperparameters, to
+match the full 617/784" story, not a broken selection algorithm.
 
 Reproduce with: `python examples/run_benchmark.py --dataset all`. Full CSV:
-[`examples/results/run_benchmark_20260831_052333.csv`](examples/results/run_benchmark_20260831_052333.csv).
+[`examples/results/run_benchmark_20260831_055324.csv`](examples/results/run_benchmark_20260831_055324.csv).
+
+### Known limitations
+
+- Fixed, untuned hyperparameters shared across all three datasets — no
+  per-dataset search (deliberate, per the design spec's Non-Goals).
+- Full-batch gradient descent (no minibatching), no train/validation split
+  — selection and final-classifier training both see the full training
+  set, evaluated once against the held-out test set.
+- `select_features_onepass` (the one-pass training trick) is more
+  sensitive to learning rate than `select_features_naive` on small
+  problems — see the comment on `tests/test_onepass.py`'s ground-truth
+  test for a concrete, verified example of this fidelity gap.
+- The OMP/Sequential-LASSO/Sequential-Attention equivalence is proven
+  exactly (Theorem 1.1/3.3) and CI-tested only on an orthonormal design
+  matrix, where OMP's residual refit is closer to a simple correlation
+  sort; `examples/run_omp_equivalence.py` additionally demonstrates
+  agreement on a non-orthonormal (correlated) design as a less trivial
+  check.
+- ISOLET's raw features are not standardized (unlike MNIST/Fashion-MNIST's
+  [0, 1] pixel scaling), which the softmax gate multiplies directly.
 
 ## File structure
 
