@@ -15,6 +15,11 @@ examples = [
 test = [
     "pytest>=7.0",
 ]
+# triton has no Windows wheels on PyPI; triton-windows is a Windows-wheel fork with the same API.
+kernel = [
+    "triton>=3.0; sys_platform == 'linux'",
+    "triton-windows>=3.7.0; sys_platform == 'win32'",
+]
 
 [build-system]
 requires = ["setuptools>=61.0"]
