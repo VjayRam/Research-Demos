@@ -32,6 +32,7 @@ class PackedCache:
     zone_a_k: torch.Tensor  # (n_kept, d) quantized K rows, channel-permuted
     zone_b_v: torch.Tensor  # (n_16bit, d) FP16 V rows
     zone_b_token_idx: torch.Tensor  # original token indices of Zone B rows
+    zone_b_mask: torch.Tensor  # (n_kept,) bool, True where the kept token is 16-bit (Zone B)
     k_channel_perm: torch.Tensor  # (d,) permutation applied to K's channel axis
     k_scale: torch.Tensor  # (d,) per-channel affine quantization scale s_c
     k_zero_point: torch.Tensor  # (d,) per-channel affine quantization zero point z_c
@@ -93,6 +94,7 @@ def pack_trizone(k: torch.Tensor, v: torch.Tensor, allocation: AllocationResult)
         zone_a_k=zone_a_k_int,
         zone_b_v=zone_b_v,
         zone_b_token_idx=zone_b_token_idx,
+        zone_b_mask=zone_b_mask,
         k_channel_perm=k_channel_perm,
         k_scale=k_scale,
         k_zero_point=k_zero_point,
