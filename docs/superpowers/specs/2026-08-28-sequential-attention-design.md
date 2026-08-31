@@ -57,7 +57,7 @@ against the paper's own reported values.
 seq-attention/
 ├── seqattention/
 │   ├── __init__.py           # public API re-exports
-│   ├── mask.py                # softmax attention mask + Hadamard overparameterization
+│   ├── mask.py                # softmax attention mask (Algorithm 1's single logit vector w)
 │   ├── selector.py             # Algorithm 1: greedy sequential selection loop
 │   ├── onepass.py              # one-pass training trick (phase scheduling within one run)
 │   ├── omp.py                  # reference OMP + Sequential LASSO, for the equivalence demo
@@ -85,15 +85,14 @@ today.
 
 ### Core algorithm (`mask.py`, `selector.py`, `onepass.py`)
 
-**`mask.py`** implements the attention mask exactly as defined in the
-paper: given per-feature attention logits, already-selected features get a
-fixed weight of 1 (piecewise, not passed through softmax), and the
-remaining unselected features compete via softmax over their logits. The
-final per-feature gate is this mask combined multiplicatively (Hadamard
-product) with a second learned weight vector — the overparameterization
-that induces implicit ℓ1-style sparsity per the paper's theory (this
-mechanism, not the softmax itself, is what drives sparsity; confirmed by
-the paper's own ablation).
+**`mask.py`** implements the attention mask exactly as defined in
+Algorithm 1: given a single per-feature attention-logit vector `w`,
+already-selected features get a fixed weight of 1 (piecewise, not passed
+through softmax), and the remaining unselected features compete via
+softmax over their logits. `w` itself is the paper's entire
+overparameterization (footnote 2) — there is no second learned weight
+vector inside the mask; the model's own parameters (e.g. a linear layer's
+weights) supply everything else, per Definition 3.1 and Appendix B.2.4.
 
 **`selector.py`** implements Algorithm 1: repeatedly (1) train the
 mask-gated model for some number of steps, (2) pick `argmax` attention
@@ -155,8 +154,8 @@ standard this implementation is judged against.
 ## Testing Strategy
 
 - `test_mask.py`: softmax normalization over unselected features sums to 1;
-  selected features are pinned to weight 1 regardless of their logit;
-  Hadamard overparameterization multiplies (not adds/replaces) the mask.
+  selected features are pinned to weight 1 regardless of their logit; the
+  mask's `gate()` equals its softmax mask (no second weight vector).
 - `test_selector.py`: on a small synthetic problem with a known ground-truth
   sparse support, Algorithm 1 recovers exactly that support in the correct
   greedy order; `|S|` grows by exactly one feature per phase and never

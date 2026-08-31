@@ -18,13 +18,10 @@ def test_selected_features_pinned_to_one():
     assert torch.isclose(m[~mask.selected].sum(), torch.tensor(1.0), atol=1e-5)
 
 
-def test_gate_is_hadamard_product_of_mask_and_weight():
+def test_gate_equals_softmax_mask():
     mask = SequentialAttentionMask(num_features=4, seed=0)
-    with torch.no_grad():
-        mask.overparam_weight.copy_(torch.tensor([2.0, 3.0, 4.0, 5.0]))
-    m = mask.softmax_mask()
-    g = mask.gate()
-    assert torch.allclose(g, m * mask.overparam_weight)
+    mask.select(1)
+    assert torch.allclose(mask.gate(), mask.softmax_mask())
 
 
 def test_forward_multiplies_input_by_gate():

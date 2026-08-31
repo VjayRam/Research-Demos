@@ -1,8 +1,9 @@
 """The paper's one-pass training trick: instead of training k independent
 models (selector.py's select_features_naive), train a single deterministic
-model across k phases, resetting the attention logits and overparam_weight for
-unselected features (not the model's other weights, and not the growing selected
-set) between phases."""
+model across k phases, resetting the attention logits (not the model's other
+weights, and not the growing selected set) between phases -- per Appendix
+B.2.4's note that resetting the attention weights each phase is important,
+but resetting the network weights is not."""
 
 from typing import Callable
 
@@ -35,9 +36,4 @@ def select_features_onepass(
             model.mask.select(best)
             selected.append(best)
             model.mask.reset_logits(seed=seed + phase + 1)
-            # Reset overparam_weight for unselected features to avoid
-            # compounding "rich-get-richer" bias from earlier phases.
-            # Selected features keep their learned overparam_weight.
-            still_unselected = ~model.mask.selected
-            model.mask.overparam_weight[still_unselected] = 1.0
     return selected

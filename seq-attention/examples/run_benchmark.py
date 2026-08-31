@@ -39,14 +39,16 @@ def evaluate(model, X, y) -> float:
         return (preds == y).float().mean().item()
 
 
-def pin_selected_features(model, selected: list[int]):
+def pin_selected_features(model):
+    """Marks every feature in `model` as selected, so the mask's softmax
+    gate degenerates to an all-ones vector (no unselected features remain to
+    leak softmax mass onto). `model` must already be sized to exactly the
+    selected feature count -- see `run_dataset`, which slices X down to the
+    selected columns before constructing this model."""
     with torch.no_grad():
-        model.mask.overparam_weight.zero_()
-        for idx in selected:
+        for idx in range(model.mask.num_features):
             model.mask.select(idx)
-            model.mask.overparam_weight[idx] = 1.0
     model.mask.attention_logits.requires_grad_(False)
-    model.mask.overparam_weight.requires_grad_(False)
     return model
 
 
@@ -67,11 +69,15 @@ def run_dataset(name, loader, num_features, num_classes, k, hidden_dim, seed=0):
         X=X_train, y=y_train, k=k, train_steps_per_phase=200, lr=1e-3, seed=seed,
     )
 
+    selected_idx = torch.tensor(selected, dtype=torch.long)
+    X_train_selected = X_train[:, selected_idx]
+    X_test_selected = X_test[:, selected_idx]
+
     torch.manual_seed(seed)
-    selected_model = AttentionGatedMLP(num_features, hidden_dim, num_classes, seed=seed)
-    selected_model = pin_selected_features(selected_model, selected)
-    selected_model = train_classifier(selected_model, X_train, y_train)
-    selected_acc = evaluate(selected_model, X_test, y_test)
+    selected_model = AttentionGatedMLP(len(selected), hidden_dim, num_classes, seed=seed)
+    selected_model = pin_selected_features(selected_model)
+    selected_model = train_classifier(selected_model, X_train_selected, y_train)
+    selected_acc = evaluate(selected_model, X_test_selected, y_test)
 
     return {
         "dataset": name,

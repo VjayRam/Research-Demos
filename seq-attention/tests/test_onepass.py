@@ -24,7 +24,7 @@ def test_select_features_onepass_recovers_ground_truth_support():
     selected = select_features_onepass(
         model_factory=lambda seed: LinearRegressionModel(num_features=X.shape[1], seed=seed),
         loss_fn=mse_loss,
-        X=X, y=y, k=3, train_steps_per_phase=300, lr=0.1, seed=0,
+        X=X, y=y, k=3, train_steps_per_phase=300, lr=0.01, seed=0,
     )
     assert set(selected) == true_support
 

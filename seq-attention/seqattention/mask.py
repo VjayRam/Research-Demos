@@ -1,8 +1,8 @@
-"""The Sequential Attention mask: selected features get a fixed weight of 1,
-unselected features compete via softmax over their attention logits, and the
-result is combined with a second learned weight vector via a Hadamard
-product -- this overparameterization is what induces implicit L1-style
-sparsity (Yasuda et al., ICLR 2023, arXiv:2209.14881, Section 3)."""
+"""The Sequential Attention mask (Yasuda et al., ICLR 2023, arXiv:2209.14881,
+Algorithm 1): selected features get a fixed weight of 1, unselected features
+compete via softmax over a single learned attention-logit vector `w`. The
+paper defines no second per-feature weight inside the mask -- `w` is the
+entire overparameterization (see footnote 2 and Appendix B.2.4)."""
 
 import torch
 
@@ -15,7 +15,6 @@ class SequentialAttentionMask(torch.nn.Module):
         self.attention_logits = torch.nn.Parameter(
             torch.randn(num_features, generator=generator) * 0.01
         )
-        self.overparam_weight = torch.nn.Parameter(torch.ones(num_features))
         self.register_buffer("selected", torch.zeros(num_features, dtype=torch.bool))
 
     def softmax_mask(self) -> torch.Tensor:
@@ -28,7 +27,7 @@ class SequentialAttentionMask(torch.nn.Module):
         return m
 
     def gate(self) -> torch.Tensor:
-        return self.softmax_mask() * self.overparam_weight
+        return self.softmax_mask()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return x * self.gate()

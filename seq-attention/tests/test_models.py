@@ -25,4 +25,3 @@ def test_attention_gated_mlp_body_excludes_mask_parameters():
     model = AttentionGatedMLP(num_features=4, hidden_dim=8, num_classes=2, seed=0)
     body_params = set(model.body.parameters())
     assert model.mask.attention_logits not in body_params
-    assert model.mask.overparam_weight not in body_params
