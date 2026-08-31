@@ -89,15 +89,33 @@ the disclosed gap above).
 
 The kernel backend wins in every configuration except `d=64, n_kept=20000`,
 which reproduces as a real regression (not measurement noise -- confirmed
-at both `--repeats 20` and `--repeats 50`), not just a one-off. Only
-`_fused_zone_a_scores` (the K-dequantization fusion itself) runs as a
-single Triton kernel; the surrounding `fused_packed_decode` glue
-(per-bit-width `searchsorted` gathers, `torch.cat` for Zone A(V)/B,
-softmax+matmul) is still several small PyTorch/CUDA calls whose launch
-overhead doesn't shrink with `d`, while the fusion's savings scale with
-`d`. At `d=64` (little per-token compute to fuse away) and large `n_kept`
-(overhead accumulates across the zone-splitting), that overhead can
-outweigh the fusion win. This is a code-level explanation, not a profiled
-one (no `torch.profiler`/CUDA-event breakdown per sub-call yet) -- treat it
-as the leading hypothesis, not a confirmed root cause, and re-profile
-before relying on the kernel backend at small `d` with very large caches.
+at both `--repeats 20` and `--repeats 50`), not just a one-off.
+
+**Profiling follow-up.** Only `_fused_zone_a_scores` (the K-dequantization
+fusion itself) runs as a single Triton kernel; the surrounding
+`fused_packed_decode` glue (per-bit-width `searchsorted` gathers,
+`aten::index`, `torch.cat` for Zone A(V)/B, softmax+matmul) is still
+several small PyTorch/CUDA calls. A `torch.profiler` CUDA-event breakdown
+confirmed part of this: across every config profiled (`d=64,n=20000`;
+`d=128,n=20000`; `d=64,n=1000`), that glue consistently cost ~1.7-1.9ms of
+CUDA time versus the fused K-score kernel's own ~0.5ms, and the glue cost
+barely moved with `d` or `n_kept` -- so the kernel backend's win margin is
+set mostly by this largely-fixed overhead, not by how much work the fused
+kernel itself avoids.
+
+That much is solid. What the profiling pass could **not** do is confirm
+*why specifically* `d=64, n_kept=20000` regresses while `d=128, n_kept=20000`
+doesn't: an ad hoc profiling script's own native-vs-kernel timings for that
+exact config did not match `run_perf_benchmark.py`'s harness numbers for
+the same config (opposite direction: the harness measured kernel slower
+than native there, the profiling script measured kernel faster) --
+most likely because the profiling script skipped a dedicated warm-up call
+for the native backend and ran several configs back-to-back in one
+process, which can leave GPU/allocator state different from
+`run_perf_benchmark.py`'s per-config isolation. Rather than pick whichever
+number looks better, this discrepancy is disclosed as unresolved: treat the
+`d=64, n_kept=20000` regression as real (reproduced twice, in the actual
+benchmark harness) but its root cause as still open. Re-profile with
+matched warm-up/isolation before relying on the kernel backend at small
+`d` with very large caches, or before trusting any specific explanation
+for the regression.
