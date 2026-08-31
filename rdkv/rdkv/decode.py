@@ -23,11 +23,27 @@ def packed_decode(
     k_new: torch.Tensor,
     v_new: torch.Tensor,
     sqrt_d: float,
+    backend: str = "native",
 ) -> torch.Tensor:
     """q_tau: (d,) query for this decode step. k_new, v_new: (n_new, d) --
     Zone C, the new tokens generated since the last packing (n_new >= 1,
     the current step's own token at minimum). Returns o_tau: (d,).
+
+    backend: "native" (default, this module's own dequantize-then-matmul
+    reference) or "kernel" (GPU-only, fuses Zone A's K dequantization into
+    the score computation -- see rdkv.kernel.fused_decode).
     """
+    if backend not in ("native", "kernel"):
+        raise ValueError(f"backend must be 'native' or 'kernel', got {backend!r}")
+    if backend == "kernel":
+        from .kernel._require import require_kernel_backend
+
+        device = "cuda" if q_tau.is_cuda else "cpu"
+        require_kernel_backend(device)
+        from .kernel.fused_decode import fused_packed_decode
+
+        return fused_packed_decode(packed, q_tau, k_new, v_new, sqrt_d)
+
     d = q_tau.shape[0]
     n_kept = packed.zone_a_k.shape[0]
 
