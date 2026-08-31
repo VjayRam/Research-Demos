@@ -62,23 +62,35 @@ def test_tighter_budget_evicts_more_tokens():
 
 
 def test_k_allocation_uses_only_kept_token_count_as_denominator():
-    # Spec Sec 7 Stage 3: B_bar_K := B_K / |T_kept|. If we force heavy V
-    # eviction (tiny b_tok), the K budget denominator shrinks, so each
-    # surviving channel should tend to get a higher or equal average
-    # bit-width than under a looser V budget with the same B_K.
+    # Spec Sec 7 Stage 3: B_bar_K := B_K / |T_kept|. B_K is derived from
+    # b_tok alone (Sec 7: B_head = 2*b_tok*d*16, B_K = B_head/2), so to
+    # isolate the denominator's effect we must hold b_tok FIXED across both
+    # calls -- that provably keeps B_K identical both times -- and instead
+    # vary the ATTENTION DISTRIBUTION to produce different kept-token counts
+    # under that equal budget: a highly peaked attn concentrates weight on a
+    # few tokens (MCKP evicts the rest, leaving few kept), while a near-
+    # uniform attn spreads weight evenly (MCKP keeps most/all tokens).
     torch.manual_seed(4)
     T, d = 32, 8
-    attn = torch.softmax(torch.randn(1, T), dim=-1)
     q = torch.randn(T, d)
     k = torch.randn(T, d)
 
-    allocator = RDKVAllocator()
-    result_tight_v = allocator.allocate(attn, q, k, b_tok=0.5)
-    result_loose_v = allocator.allocate(attn, q, k, b_tok=8.0)
+    skewed_logits = torch.randn(1, T) * 20.0  # near one-hot after softmax
+    uniform_logits = torch.randn(1, T) * 0.01  # near-uniform after softmax
+    attn_skewed = torch.softmax(skewed_logits, dim=-1)
+    attn_uniform = torch.softmax(uniform_logits, dim=-1)
 
-    # Tighter V eviction leaves fewer kept tokens -> K's per-channel budget
-    # denominator (|T_kept|) shrinks -> average K bit-width should not decrease.
-    assert result_tight_v.b_k.float().mean().item() >= result_loose_v.b_k.float().mean().item() - 1e-6
+    allocator = RDKVAllocator()
+    b_tok = 4.0  # SAME b_tok for both calls -> B_K is provably identical.
+    result_skewed = allocator.allocate(attn_skewed, q, k, b_tok=b_tok)
+    result_uniform = allocator.allocate(attn_uniform, q, k, b_tok=b_tok)
+
+    # Skewed attn evicts more tokens, leaving fewer kept than uniform attn.
+    assert len(result_skewed.kept_tokens) < len(result_uniform.kept_tokens)
+
+    # Same B_K, smaller |T_kept| denominator (skewed) -> higher or equal
+    # average K bit-width than the larger |T_kept| (uniform) case.
+    assert result_skewed.b_k.float().mean().item() >= result_uniform.b_k.float().mean().item() - 1e-6
 
 
 def test_all_tokens_evicted_zeros_out_k_allocation_gracefully():
