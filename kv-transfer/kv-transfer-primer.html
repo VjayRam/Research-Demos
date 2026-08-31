@@ -1,0 +1,1089 @@
+<title>KV Transfer Primer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+/* ============================= TOKENS ============================= */
+:root{
+  --bg:#EDF1EF;
+  --surface:#FFFFFF;
+  --surface-2:#E1E8E5;
+  --surface-3:#D3DCD8;
+  --ink:#12191A;
+  --ink-muted:#57696A;
+  --ink-faint:#8A9997;
+  --rule:#C9D3CF;
+  --accent-signal:#0E8C82;
+  --accent-signal-soft:#0E8C821a;
+  --accent-quant:#A8650A;
+  --accent-quant-soft:#A8650A1a;
+  --accent-error:#B23B23;
+  --accent-error-soft:#B23B231a;
+  --shadow:0 1px 2px rgba(18,25,26,0.06), 0 6px 20px rgba(18,25,26,0.05);
+  --radius:10px;
+  --font-display:'Newsreader', 'Iowan Old Style', 'Georgia', serif;
+  --font-body:'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
+  --font-mono:'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  /* source = amber, target = teal, reused from the shared accent pair */
+  --src:#A8650A; --src-soft:#A8650A1a;
+  --tgt:#0E8C82; --tgt-soft:#0E8C821a;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0C1213; --surface:#131B1C; --surface-2:#1B2426; --surface-3:#25302F;
+    --ink:#E7EEEC; --ink-muted:#93A6A3; --ink-faint:#5E7371; --rule:#243030;
+    --accent-signal:#4FE3D2; --accent-signal-soft:#4FE3D226;
+    --accent-quant:#F2B24A; --accent-quant-soft:#F2B24A26;
+    --accent-error:#FF7A61; --accent-error-soft:#FF7A6126;
+    --shadow:0 1px 2px rgba(0,0,0,0.3), 0 8px 28px rgba(0,0,0,0.35);
+    --src:#F2B24A; --src-soft:#F2B24A26;
+    --tgt:#4FE3D2; --tgt-soft:#4FE3D226;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0C1213; --surface:#131B1C; --surface-2:#1B2426; --surface-3:#25302F;
+  --ink:#E7EEEC; --ink-muted:#93A6A3; --ink-faint:#5E7371; --rule:#243030;
+  --accent-signal:#4FE3D2; --accent-signal-soft:#4FE3D226;
+  --accent-quant:#F2B24A; --accent-quant-soft:#F2B24A26;
+  --accent-error:#FF7A61; --accent-error-soft:#FF7A6126;
+  --shadow:0 1px 2px rgba(0,0,0,0.3), 0 8px 28px rgba(0,0,0,0.35);
+  --src:#F2B24A; --src-soft:#F2B24A26;
+  --tgt:#4FE3D2; --tgt-soft:#4FE3D226;
+}
+
+/* ============================= RESET/BASE ============================= */
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+@media (prefers-reduced-motion: reduce){ html{scroll-behavior:auto;} *{animation-duration:0.001ms !important; transition-duration:0.001ms !important;} }
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:var(--font-body); font-size:16px; line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4{font-family:var(--font-display); font-weight:600; text-wrap:balance; margin:0 0 .5em; color:var(--ink);}
+p{margin:0 0 1em; max-width:66ch;}
+a{color:var(--accent-signal);}
+.mono{font-family:var(--font-mono);}
+.eyebrow{
+  font-family:var(--font-mono); font-size:.72rem; letter-spacing:.11em; text-transform:uppercase;
+  color:var(--accent-signal); font-weight:600; margin:0 0 .6em;
+}
+.formula{
+  font-family:var(--font-mono); background:var(--surface-2); border:1px solid var(--rule);
+  border-radius:8px; padding:.9em 1.1em; overflow-x:auto; font-size:.92rem; color:var(--ink);
+  line-height:1.7;
+}
+.formula .op{color:var(--accent-signal);}
+.formula .q{color:var(--accent-quant);}
+.formula .s{color:var(--src);}
+.formula .t{color:var(--tgt);}
+code{font-family:var(--font-mono); font-size:.9em; background:var(--surface-2); padding:.1em .35em; border-radius:4px;}
+.tag{
+  display:inline-block; font-family:var(--font-mono); font-size:.7rem; letter-spacing:.06em;
+  text-transform:uppercase; padding:.2em .55em; border-radius:5px; border:1px solid var(--rule);
+  color:var(--ink-muted);
+}
+.tag.pedagogical{ color:var(--accent-quant); border-color:var(--accent-quant-soft); background:var(--accent-quant-soft);}
+.tag.paper{ color:var(--accent-signal); border-color:var(--accent-signal-soft); background:var(--accent-signal-soft);}
+
+/* ============================= LAYOUT ============================= */
+.page{ display:grid; grid-template-columns: 250px minmax(0,1fr); max-width:1320px; margin:0 auto; }
+@media (max-width:980px){ .page{ grid-template-columns:1fr; } }
+
+nav.toc{
+  position:sticky; top:0; align-self:start; height:100vh; overflow-y:auto;
+  padding:2rem 1.2rem 2rem 1.6rem; border-right:1px solid var(--rule);
+}
+@media (max-width:980px){
+  nav.toc{ position:static; height:auto; border-right:none; border-bottom:1px solid var(--rule); padding:1rem 1.2rem; }
+  nav.toc .toc-list{ display:none; }
+}
+nav.toc .brand{
+  font-family:var(--font-display); font-weight:600; font-size:1.05rem; margin-bottom:1.6rem;
+  display:flex; align-items:center; gap:.5em;
+}
+nav.toc .brand .mark{ color:var(--accent-signal); font-size:1.2em; }
+.toc-list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.15rem;}
+.toc-list a{
+  display:flex; gap:.6em; align-items:baseline; text-decoration:none; color:var(--ink-muted);
+  font-size:.86rem; padding:.4em .5em; border-radius:6px; border-left:2px solid transparent;
+}
+.toc-list a .n{ font-family:var(--font-mono); font-size:.72rem; color:var(--ink-faint); }
+.toc-list a:hover{ background:var(--surface-2); color:var(--ink); }
+.toc-list a.active{ color:var(--accent-signal); border-left-color:var(--accent-signal); background:var(--accent-signal-soft); }
+.toc-foot{ margin-top:1.5rem; padding-top:1rem; border-top:1px solid var(--rule); font-size:.78rem; color:var(--ink-faint); }
+.theme-toggle{
+  font-family:var(--font-mono); font-size:.72rem; background:var(--surface-2); border:1px solid var(--rule);
+  color:var(--ink-muted); border-radius:6px; padding:.35em .6em; cursor:pointer; margin-top:.8rem;
+}
+.theme-toggle:hover{ color:var(--ink); }
+
+main{ min-width:0; }
+section{ padding:5.5rem clamp(1.3rem,4vw,4.5rem) 0; scroll-margin-top:1rem; }
+section:last-of-type{ padding-bottom:5rem; }
+.section-inner{ max-width:960px; }
+.kicker-row{ display:flex; align-items:center; gap:.8em; margin-bottom:.3em; flex-wrap:wrap; }
+
+.panel{
+  background:var(--surface); border:1px solid var(--rule); border-radius:var(--radius);
+  box-shadow:var(--shadow); padding:1.4rem 1.5rem; margin:1.6rem 0;
+}
+.panel-title{ font-family:var(--font-mono); font-size:.75rem; letter-spacing:.07em; text-transform:uppercase;
+  color:var(--ink-muted); margin-bottom:1rem; display:flex; justify-content:space-between; align-items:center; gap:1em; flex-wrap:wrap;}
+
+.grid-2{ display:grid; grid-template-columns:1fr 1fr; gap:1.4rem; }
+@media (max-width:760px){ .grid-2{ grid-template-columns:1fr; } }
+
+table{ border-collapse:collapse; width:100%; font-size:.88rem; }
+table caption{ caption-side:top; text-align:left; font-family:var(--font-mono); font-size:.75rem; color:var(--ink-muted); margin-bottom:.5em; text-transform:uppercase; letter-spacing:.06em;}
+th,td{ text-align:left; padding:.5em .7em; border-bottom:1px solid var(--rule); font-variant-numeric:tabular-nums; }
+th{ font-family:var(--font-mono); font-weight:600; color:var(--ink-muted); font-size:.76rem; text-transform:uppercase; letter-spacing:.04em;}
+td.num, th.num{ text-align:right; font-family:var(--font-mono); }
+.table-wrap{ overflow-x:auto; }
+
+button.btn{
+  font-family:var(--font-mono); font-size:.8rem; background:var(--surface-2); color:var(--ink);
+  border:1px solid var(--rule); border-radius:7px; padding:.5em .9em; cursor:pointer;
+  transition:background .15s, border-color .15s;
+}
+button.btn:hover{ border-color:var(--accent-signal); }
+button.btn:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible{ outline:2px solid var(--accent-signal); outline-offset:2px; }
+button.btn.primary{ background:var(--accent-signal); color:#06211e; border-color:var(--accent-signal); font-weight:600;}
+button.btn:disabled{ opacity:.4; cursor:not-allowed; }
+.btn-row{ display:flex; gap:.6em; flex-wrap:wrap; align-items:center; }
+
+.control{ display:flex; flex-direction:column; gap:.35em; font-size:.82rem; color:var(--ink-muted); }
+.control input[type=range]{ accent-color:var(--accent-signal); width:100%; }
+.control select{
+  font-family:var(--font-mono); font-size:.82rem; background:var(--surface-2); color:var(--ink);
+  border:1px solid var(--rule); border-radius:6px; padding:.4em .5em;
+}
+.pillgroup{ display:flex; gap:.4em; flex-wrap:wrap; }
+.pill{
+  font-family:var(--font-mono); font-size:.78rem; padding:.35em .8em; border-radius:20px;
+  border:1px solid var(--rule); background:var(--surface-2); color:var(--ink-muted); cursor:pointer;
+}
+.pill.active{ background:var(--accent-signal-soft); border-color:var(--accent-signal); color:var(--accent-signal); }
+
+.stat{ display:flex; flex-direction:column; gap:.1em; }
+.stat .v{ font-family:var(--font-mono); font-size:1.35rem; font-weight:600; }
+.stat .k{ font-size:.75rem; color:var(--ink-muted); text-transform:uppercase; letter-spacing:.05em; }
+.stat-row{ display:flex; gap:2rem; flex-wrap:wrap; margin:1rem 0; }
+
+.callout{ border-left:3px solid var(--accent-quant); background:var(--accent-quant-soft); border-radius:0 8px 8px 0; padding:.9em 1.1em; font-size:.92rem; margin:1.2rem 0; }
+.callout p:last-child{ margin-bottom:0; }
+.callout.note{ border-left-color:var(--accent-signal); background:var(--accent-signal-soft); }
+
+hr.rule{ border:none; border-top:1px solid var(--rule); margin:2.5rem 0; }
+
+canvas{ display:block; width:100%; }
+svg{ display:block; width:100%; height:auto; overflow:visible; }
+.viz-caption{ font-size:.78rem; color:var(--ink-faint); margin-top:.6rem; font-family:var(--font-mono); }
+
+.bars{ display:flex; align-items:flex-end; gap:6px; height:150px; }
+.bars .bar{ flex:1; border-radius:3px 3px 0 0; position:relative; min-width:6px; transition:height .25s, background .25s; }
+.bars .bar .lbl{ position:absolute; top:-1.3em; left:0; right:0; text-align:center; font-family:var(--font-mono); font-size:.66rem; color:var(--ink-faint); }
+.bars .bar .idx{ position:absolute; bottom:-1.4em; left:0; right:0; text-align:center; font-family:var(--font-mono); font-size:.66rem; color:var(--ink-faint); }
+.bars-wrap{ padding-bottom:1.6em; }
+
+.legend{ display:flex; gap:1.2em; flex-wrap:wrap; font-size:.78rem; color:var(--ink-muted); margin-top:.6em;}
+.legend .sw{ display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:.4em; vertical-align:middle;}
+
+.footer-note{ padding:3rem clamp(1.3rem,4vw,4.5rem) 4rem; color:var(--ink-faint); font-size:.85rem; }
+.footer-note a{ color:var(--ink-muted); }
+ul.src-list{ padding-left:1.1em; }
+ul.src-list li{ margin-bottom:.4em; }
+
+.overline{ text-decoration:overline; text-decoration-thickness:1px; }
+
+.heat-grid{ display:grid; gap:2px; }
+.heat-cell{ aspect-ratio:1; border-radius:2px; position:relative; }
+.heat-cell.sel{ outline:2px solid var(--tgt); outline-offset:-2px; }
+.heat-axis{ display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:.66rem; color:var(--ink-faint); margin-top:.4em; }
+
+.zone-row{ display:flex; gap:2px; height:64px; border-radius:6px; overflow:hidden; border:1px solid var(--rule); }
+.zone-cell{ flex:1; display:flex; align-items:center; justify-content:center; font-family:var(--font-mono); font-size:.68rem; color:#06211e; min-width:4px; }
+.zone-label{ font-family:var(--font-mono); font-size:.72rem; color:var(--ink-muted); margin-top:.5em; display:flex; justify-content:space-between; }
+</style>
+
+<div class="page">
+  <nav class="toc">
+    <div class="brand"><span class="mark">&#8646;</span> KV Transfer Primer</div>
+    <ul class="toc-list" id="tocList">
+      <li><a href="#why"><span class="n">00</span> Prefill is a re-payable tax</a></li>
+      <li><a href="#setup"><span class="n">01</span> Setup &amp; notation</a></li>
+      <li><a href="#structure"><span class="n">02</span> Linear structure in cross-model KV</a></li>
+      <li><a href="#ridge"><span class="n">03</span> Per-head ridge regression</a></li>
+      <li><a href="#crosslayer"><span class="n">04</span> Cross-layer source selection</a></li>
+      <li><a href="#rope"><span class="n">05</span> Content-space (RoPE) mapping</a></li>
+      <li><a href="#mlp"><span class="n">06</span> Nonlinear MLP extension</a></li>
+      <li><a href="#quality"><span class="n">07</span> What determines transfer quality</a></li>
+      <li><a href="#multiturn"><span class="n">08</span> Multi-turn drift &amp; latency</a></li>
+      <li><a href="#worked"><span class="n">09</span> Worked example</a></li>
+      <li><a href="#results"><span class="n">10</span> Headline results</a></li>
+      <li><a href="#sources"><span class="n">11</span> Sources</a></li>
+    </ul>
+    <div class="toc-foot">
+      Read top to bottom &mdash; every section builds on the last.
+      <button class="theme-toggle" id="themeToggle" type="button">Toggle theme</button>
+    </div>
+  </nav>
+
+  <main>
+    <section class="hero" id="top" style="padding-top:3.6rem;">
+      <div class="section-inner">
+        <div class="eyebrow">An interactive reading of one arXiv paper</div>
+        <h1 style="font-size:clamp(2.1rem,4vw,3.1rem); line-height:1.08; max-width:19ch;">Reusing a KV cache is a representation-transfer problem, not a re-prefill problem</h1>
+        <p class="lede" style="font-size:1.1rem; color:var(--ink-muted); max-width:58ch;">When production serving swaps between two sizes of the same model family &mdash;
+        cost-quality cascading, mid-conversation switching, routing &mdash; the receiving model
+        normally has to re-run the entire prefill forward pass on the accumulated context.
+        This paper shows that's often unnecessary: cross-model KV caches share substantial
+        <em>linear</em> structure, so a small, closed-form, per-head ridge regression &mdash;
+        fit once on 500 calibration sequences, no gradient descent &mdash; can map a source
+        model's KV cache directly into a target model's expected format.</p>
+        <div class="hero-meta" style="display:flex; gap:1.6rem; flex-wrap:wrap; margin-top:1.6rem; font-family:var(--font-mono); font-size:.78rem; color:var(--ink-faint);">
+          <span>arXiv:2608.03893 &middot; Cross-Model KV Cache Transfer</span>
+          <span>A Closed-Form Linear Mapping for Prefill Reuse</span>
+        </div>
+      </div>
+      <div class="panel" style="margin-top:2.2rem;">
+        <div class="panel-title">
+          <span>Live &mdash; Table 5, re-prefill vs. mapper latency (Qwen3 14B&harr;32B)</span>
+          <span class="mono" id="heroSpeedLbl" style="color:var(--ink-faint);">speedup</span>
+        </div>
+        <div class="btn-row" style="margin-bottom:1rem;">
+          <div class="pillgroup" id="heroDir">
+            <button class="pill active" data-dir="sl">14B &rarr; 32B (S&rarr;L, k=8)</button>
+            <button class="pill" data-dir="ls">32B &rarr; 14B (L&rarr;S, k=20)</button>
+          </div>
+        </div>
+        <div class="btn-row" style="margin-bottom:1.2rem;">
+          <div class="pillgroup" id="heroLen">
+            <button class="pill" data-len="64">64 tok</button>
+            <button class="pill active" data-len="8192">8K tok</button>
+            <button class="pill" data-len="32768">32K tok</button>
+          </div>
+        </div>
+        <div class="bars-wrap"><div class="bars" id="heroBars" style="height:130px;"></div></div>
+        <p class="viz-caption">Every number on this panel is Table 5, verbatim &mdash; not simulated. The mapper
+        replaces the target's transformer body with a per-layer batched matmul; re-prefill runs the target's
+        full forward pass over the sequence.</p>
+      </div>
+    </section>
+
+    <section id="why">
+      <div class="section-inner">
+        <div class="eyebrow">00 &middot; The reframing</div>
+        <h2>Prefill's output is the KV cache &mdash; so reusing it is a representation problem</h2>
+        <p>Production LLM serving increasingly relies on multi-model orchestration: cost-quality
+        cascading, mid-conversation model switching, and routing across different sizes of the same
+        family. Each swap forces the receiving model to re-prefill the entire accumulated context from
+        scratch &mdash; a forward pass whose cost scales with model size and prompt length. Prefix
+        caching only helps <em>within</em> one model; it does nothing across a model swap.</p>
+        <div class="callout">
+          <p><strong>The paper's core move:</strong> since prefill's only output is the KV cache, reusing
+          it across models reduces to a representation problem &mdash; transforming one model's KV cache
+          into the format another model expects. The paper calls this <strong>cross-model KV cache
+          transfer</strong>, and restricts the study to <em>within-family</em> transfer, where source and
+          target share a tokenizer, core architectural choices, and substantial pretraining data.</p>
+        </div>
+        <p>The mapping is bidirectional: small&rarr;large transfer upgrades quality mid-session,
+        large&rarr;small reduces cost. Across six matched-KV pairs from three families (Qwen3, Llama 3.1,
+        Ministral 3), a closed-form linear mapper retains <strong>73&ndash;98%</strong> of the receiver's
+        standalone-prefill accuracy on four of those pairs, while two degrade sharply &mdash; and runs
+        <strong>2.7&ndash;25&times;</strong> faster than re-prefill. The rest of this page follows the
+        paper's own derivation order: what structure the cross-model KV relationship actually has
+        (&sect;02), the three-part mapper built to exploit it (&sect;03&ndash;05), a nonlinear extension
+        for the pairs where linearity isn't enough (&sect;06), and what actually predicts whether a given
+        pair will transfer well (&sect;07).</p>
+      </div>
+    </section>
+
+    <section id="setup">
+      <div class="section-inner">
+        <div class="eyebrow">01 &middot; &sect;2.1, Problem formulation</div>
+        <h2>Matched-KV pairs and the transfer objective</h2>
+        <p>A source model <code class="s">&#119982;</code> has <code>L<sub class="s">s</sub></code> layers;
+        a target model <code class="t">&#119983;</code> has <code>L<sub class="t">t</sub></code> layers. Both
+        use grouped-query attention with <code>n<sub class="s">kv</sub><sup class="s">s</sup></code> and
+        <code>n<sub class="t">kv</sub><sup class="t">t</sup></code> KV heads of dimension
+        <code>d<sub class="s">h</sub><sup class="s">s</sup></code> and <code>d<sub class="t">h</sub><sup class="t">t</sup></code>.
+        For input sequence <code>x=(x<sub>1</sub>,&hellip;,x<sub>T</sub>)</code>, layer <code>l</code>, head
+        <code>h</code> of the source produces keys/values
+        <code>K<sub class="s">s</sub><sup>l,h</sup>, V<sub class="s">s</sub><sup>l,h</sup> &isin; &#8477;<sup>T&times;d<sub class="s">h</sub><sup class="s">s</sup></sup></code>.
+        Source and target share a tokenizer within a family, so the input has the same length
+        <code>T</code> for both.</p>
+        <div class="panel">
+          <div class="panel-title"><span>Matched-KV definition</span><span class="tag paper">verbatim from the paper</span></div>
+          <div class="formula">A transfer pair has <span class="op">matched KV</span> when n<sub class="s">kv</sub><sup class="s">s</sup> = n<sub class="t">kv</sub><sup class="t">t</sup> and d<sub class="s">h</sub><sup class="s">s</sup> = d<sub class="t">h</sub><sup class="t">t</sup>, &nbsp;even if L<sub class="s">s</sub>, L<sub class="t">t</sub>, or parameter counts differ across scales.</div>
+        </div>
+        <p>The goal is a mapping <code>f: &#119966;<sub class="s">&#119982;</sub> &rarr; &#119966;&#770;<sub class="t">&#119983;</sub></code>
+        from the full source cache to a predicted target cache, such that the target decoding from
+        <code>&#119966;&#770;<sub class="t">&#119983;</sub></code> in place of its own
+        <code>&#119966;<sub class="t">&#119983;</sub></code> produces equivalent outputs:</p>
+        <div class="formula">m( &#119983;(x; &#119966;&#770;<sub class="t">&#119983;</sub>) )&nbsp; &approx; &nbsp;m( &#119983;(x; &#119966;<sub class="t">&#119983;</sub>) ) &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:var(--ink-faint);">&mdash; Eq. (1)</span></div>
+        <p>for downstream task metric <code>m</code>. <code>f</code> decomposes into independent per-head
+        mappings <code>f<sub class="s">K</sub><sup>l,h</sup></code> and <code>f<sub class="s">V</sub><sup>l,h</sup></code>
+        that produce the target's keys and values for each layer and head. Transfer quality is measured by
+        the target model's <em>downstream accuracy</em>, not by cache-reconstruction error alone &mdash; a
+        distinction that turns out to matter a great deal (&sect;07).</p>
+      </div>
+    </section>
+
+    <section id="structure">
+      <div class="section-inner">
+        <div class="eyebrow">02 &middot; &sect;2.3, Linear structure in cross-model KV</div>
+        <h2>Before choosing a mapper architecture: how much structure is actually here?</h2>
+        <p>For each cache type <code>C &isin; {K<sub class="op">rope</sub>, K<sub class="op">stripped</sub>, V}</code>
+        and each triple of source layer <code>l&prime;</code>, target layer <code>l</code>, head <code>h</code>,
+        the paper fits a single-source OLS probe at the token level &mdash; a diagnostic, not the production
+        mapper of &sect;03&ndash;05:</p>
+        <div class="formula">Ĉ<sub class="t">t</sub><sup>l,h</sup> = C<sub class="s">s</sub><sup>l&prime;,h</sup> W + b, &nbsp;&nbsp;&nbsp;&nbsp; W &isin; &#8477;<sup>d<sub class="s">h</sub><sup class="s">s</sup>&times;d<sub class="t">h</sub><sup class="t">t</sup></sup>, &nbsp; b &isin; &#8477;<sup>d<sub class="t">h</sub><sup class="t">t</sup></sup> &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:var(--ink-faint);">&mdash; Eq. (2)</span></div>
+        <p>Fit quality is measured by <code>R&sup2;</code>, head-averaged, visualized as a heatmap: rows are
+        source layers, columns are target layers. On Qwen3 14B&rarr;32B, a <strong>single</strong> source
+        layer explains <strong>56%</strong> of variance in the target's keys and <strong>32%</strong> in
+        values &mdash; rising to <strong>79%</strong> and <strong>65%</strong> with multiple source layers
+        selected by greedy forward selection. The best single source&ndash;target cell reaches
+        <code>R&sup2;=0.81</code> (14B&rarr;32B) and <code>0.65</code> (8B&rarr;32B, a weaker pair) at the
+        heatmap peaks.</p>
+        <div class="panel">
+          <div class="panel-title">
+            <span>Illustrative R&sup2; heatmap &mdash; 8 source layers &times; 8 target layers</span>
+            <span class="tag pedagogical">qualitative pattern, not digitized figure data</span>
+          </div>
+          <div class="pillgroup" id="heatToggle" style="margin-bottom:1rem;">
+            <button class="pill" data-c="rope">K<sub>rope</sub></button>
+            <button class="pill active" data-c="stripped">K<sub>stripped</sub></button>
+            <button class="pill" data-c="v">V</button>
+          </div>
+          <div class="heat-grid" id="heatGrid" style="grid-template-columns:repeat(8,1fr);"></div>
+          <div class="heat-axis"><span>target layer 1 &rarr; 8</span><span>row = source layer 1 &rarr; 8</span></div>
+          <p class="viz-caption" id="heatCaption"></p>
+        </div>
+        <p>Four qualitative patterns fall out of this picture, all reproduced in the toggle above: (1) fit
+        is well above zero along the diagonal &mdash; a large fraction of cross-model KV variance is already
+        linear; (2) closer model pairs give sharper diagonals, larger gaps diffuse the pattern; (3) RoPE
+        contaminates the fit &mdash; stripping it sharpens the diagonal, motivating &sect;05; (4) K is
+        consistently more predictable than V, typically by a &sim;0.2 gap in head-averaged
+        <code>R&sup2;</code>.</p>
+        <div class="callout">
+          <p><strong>How many source layers does the mapper need?</strong> Extending the probe with greedy
+          forward selection (iteratively adding the source layer that maximally increases <code>R&sup2;</code>)
+          shows complementary information spread across multiple layers: on Qwen3 14B&rarr;32B,
+          <code>k=1</code> captures only <strong>66%</strong> of the <code>k=all</code> <code>R&sup2;</code>
+          for <code>K<sub>stripped</sub></code> and <strong>42%</strong> for <code>V</code>, with the largest
+          gain from <code>k=1</code> to <code>k=4</code> and near-<code>k=all</code> performance by
+          <code>k=6</code>. This motivates top-<code>k</code> source selection (&sect;04).</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="ridge">
+      <div class="section-inner">
+        <div class="eyebrow">03 &middot; &sect;3.1, Per-head ridge regression</div>
+        <h2>One closed-form linear solve per (target layer, head)</h2>
+        <p>Source and target differ in layer count, head dimension, and potentially KV head count. The
+        mapper handles this by fitting an <em>independent</em> linear mapping per target (layer, head):</p>
+        <div class="formula">K̂<sub class="t">t</sub><sup>l,h</sup> = X<sub class="s">K</sub><sup>l</sup> W<sub class="s">K</sub><sup>l,h</sup> + b<sub class="s">K</sub><sup>l,h</sup>, &nbsp;&nbsp;&nbsp; V̂<sub class="t">t</sub><sup>l,h</sup> = X<sub class="s">V</sub><sup>l</sup> W<sub class="s">V</sub><sup>l,h</sup> + b<sub class="s">V</sub><sup>l,h</sup> &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:var(--ink-faint);">&mdash; Eq. (3)</span></div>
+        <p>where <code>X<sub class="s">K</sub><sup>l</sup></code> concatenates source key features from the
+        <code>k</code> selected source layers (&sect;04) and
+        <code>W<sub class="s">K</sub><sup>l,h</sup> &isin; &#8477;<sup>(k&middot;n<sub class="s">kv</sub><sup class="s">s</sup>&middot;d<sub class="s">h</sub><sup class="s">s</sup>)&times;d<sub class="t">h</sub><sup class="t">t</sup></sup></code>.
+        Stacking <code>N</code> calibration tokens gives design matrix
+        <code>X &isin; &#8477;<sup>N&times;(k n<sub class="s">kv</sub><sup class="s">s</sup> d<sub class="s">h</sub><sup class="s">s</sup>)</sup></code>
+        and response <code>Y &isin; &#8477;<sup>N&times;d<sub class="t">h</sub><sup class="t">t</sup></sup></code>.
+        Ridge, not pure OLS, is used for conditioning &mdash; the feature dimension can reach tens of
+        thousands at large <code>k</code>, and top-<code>k</code> selected source layers are by construction
+        correlated, so <code>X<sup>&#8868;</sup>X</code> is near-singular:</p>
+        <div class="panel">
+          <div class="panel-title"><span>Closed-form ridge solution</span><span class="tag paper">verbatim from the paper</span></div>
+          <div class="formula">W* = (X<sup>&#8868;</sup>X + &lambda;I)<sup>&minus;1</sup> X<sup>&#8868;</sup>Y, &nbsp;&nbsp;&nbsp; &lambda;=0.01 &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:var(--ink-faint);">&mdash; Eq. (4)</span></div>
+          <p style="margin-top:.8em; margin-bottom:0;"><code>X</code> and <code>Y</code> are centered before
+          solving, so <code>W*</code> above estimates the slope and the bias is recovered separately:
+          <code>b = Ȳ &minus; X̄W*</code>.</p>
+        </div>
+        <p>Calibration uses 500 FineWeb-Edu sequences of length 1024, stride-4 subsampled to
+        <code>N&asymp;128K</code> tokens per target head. Fitting takes &sim;47&ndash;87 minutes per pair on
+        a single 8&times;H100 node &mdash; no gradient-based training anywhere in the pipeline. A
+        four-order-of-magnitude sweep of <code>&lambda;</code> shows a wide flat region (collapse only at
+        <code>&lambda;=1</code>), and <code>N=50</code> already lands within &sim;1.6pp of the full
+        <code>N&asymp;128K</code> production fit.</p>
+        <div class="panel">
+          <div class="panel-title">
+            <span>Live &mdash; Eq. (4) solved exactly on a toy near-collinear calibration set</span>
+            <span class="mono" id="ridgeLambdaLbl" style="color:var(--ink-faint);">&lambda;</span>
+          </div>
+          <div class="control" style="max-width:420px; margin-bottom:1rem;">
+            <label for="ridgeLambda">&lambda; (log scale, 0.0001 &ndash; 3)</label>
+            <input type="range" id="ridgeLambda" min="-4" max="0.5" step="0.05" value="-2">
+          </div>
+          <div class="stat-row" id="ridgeStats"></div>
+          <div class="bars-wrap"><div class="bars" id="ridgeBars" style="height:120px;"></div></div>
+          <p class="viz-caption">6 toy calibration tokens, 2 correlated source features (x<sub>1</sub>&asymp;x<sub>2</sub>
+          for 5 of 6 points &mdash; the near-singular condition the paper describes for concatenated,
+          correlated source layers), 1 target scalar. Bars: predicted vs. actual target value per token.
+          At <code>&lambda;&rarr;0</code>, W swings to fit noise in the collinear direction; increasing
+          &lambda; shrinks and stabilizes it, exactly as Eq. (4) prescribes.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="crosslayer">
+      <div class="section-inner">
+        <div class="eyebrow">04 &middot; &sect;3.2, Cross-layer source selection</div>
+        <h2>Every target layer gets its own top-<code>k</code> committee of source layers</h2>
+        <p>Source and target have different numbers of layers, so which source layers should inform each
+        target layer's mapping is not obvious. For each target layer <code>l</code>, the top-<code>k</code>
+        source layers are selected by head-averaged <code>R&sup2;</code> (averaged over RoPE-stripped keys
+        and values), and their KV features are concatenated to build the design matrix used in &sect;03:</p>
+        <div class="formula">X<sub class="s">K</sub><sup>l</sup> = [ K̄<sub class="s">s</sub><sup>l<sub>1</sub></sup> &Verbar; K̄<sub class="s">s</sub><sup>l<sub>2</sub></sup> &Verbar; &ctdot; &Verbar; K̄<sub class="s">s</sub><sup>l<sub>k</sub></sup> ] &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:var(--ink-faint);">&mdash; Eq. (5)</span></div>
+        <p>where <code>K̄<sub class="s">s</sub><sup>l<sub>i</sub></sup> &isin; &#8477;<sup>T&times;(n<sub class="s">kv</sub><sup class="s">s</sup>&middot;d<sub class="s">h</sub><sup class="s">s</sup>)</sup></code>
+        concatenates all key heads from source layer <code>l<sub>i</sub></code>, and
+        <code>{l<sub>1</sub>,&hellip;,l<sub>k</sub>}</code> are the top-<code>k</code> source layers for target
+        layer <code>l</code>. <code>X<sub class="s">V</sub><sup>l</sup></code> is built analogously from
+        value heads. All heads within a target layer share the same selected source layers &mdash;
+        cross-layer selection is a per-<em>layer</em> decision, not per-head. <code>k</code> itself is a
+        hyperparameter, swept per pair over <code>{1,2,4,6,8,10,12,16,20,24,all}</code> and picked to
+        maximize mean log-likelihood accuracy on held-in benchmarks.</p>
+        <div class="panel">
+          <div class="panel-title">
+            <span>Top-<code>k</code> selection over the &sect;02 heatmap</span>
+            <span class="tag pedagogical">greedy increment approximated by marginal R&sup2; rank</span>
+          </div>
+          <div class="btn-row" style="margin-bottom:1rem; gap:1.4em; flex-wrap:wrap;">
+            <div class="control" style="max-width:220px;">
+              <label for="xlTarget">target layer</label>
+              <select id="xlTarget"></select>
+            </div>
+            <div class="control" style="max-width:260px;">
+              <label for="xlK">k = <span id="xlKVal">3</span> selected source layers</label>
+              <input type="range" id="xlK" min="1" max="8" step="1" value="3">
+            </div>
+          </div>
+          <div class="heat-grid" id="xlGrid" style="grid-template-columns:repeat(8,1fr);"></div>
+          <div class="heat-axis"><span>selected source layers highlighted (teal outline)</span><span>K<sub>stripped</sub> R&sup2;</span></div>
+          <p class="viz-caption">Reuses the K<sub>stripped</sub> heatmap from &sect;02. The paper's real
+          selection uses true greedy forward regression (each addition re-fit, not independent ranking) &mdash;
+          this demo approximates it by ranking marginal single-layer R&sup2; for the chosen target column,
+          which reproduces the qualitative "nearby source layers, sharp falloff" pattern without re-deriving
+          a full regression client-side.</p>
+        </div>
+        <div class="callout">
+          <p><strong>Ablation confirms this is the largest single contributor.</strong> Reducing <code>k</code>
+          from 8 to 1 on Qwen3 14B&rarr;32B drops K <code>R&sup2;</code> from 0.79 to 0.56 &mdash; a bigger
+          swing than disabling ridge regularization or RoPE handling (full ablation table in &sect;07).</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="rope">
+      <div class="section-inner">
+        <div class="eyebrow">05 &middot; &sect;3.3, Content-space (RoPE) mapping</div>
+        <h2>Strip the rotation, fit in content space, re-rotate at the target's position</h2>
+        <p>RoPE applies a position-dependent rotation to queries and keys; the cache stores only the
+        rotated key <code>k<sub class="op">RoPE</sub>(t) = R<sub>&Theta;</sub>(t) k<sub class="op">content</sub></code>.
+        Fitting the ridge weights directly on RoPE-coupled keys works within noise on short-context
+        benchmarks, but ties the fitted weights to the 1024-token position distribution seen at
+        calibration. Decoupling position from content makes the mapper position-free and reusable at any
+        length the target's RoPE supports &mdash; which matters when serving prompts up to 32K tokens.</p>
+        <div class="panel">
+          <div class="panel-title"><span>Content-space mapping</span><span class="tag paper">verbatim from the paper</span></div>
+          <div class="formula">K̂<sub class="t">t</sub> = ( K<sub class="s">s</sub> R<sub>&Theta;<sub class="s">s</sub></sub><sup>&minus;1</sup>(t) W<sub class="s">K</sub> + b<sub class="s">K</sub> ) R<sub>&Theta;<sub class="t">t</sub></sub>(t)</div>
+          <p style="margin-top:.8em; margin-bottom:0;">Regression targets during calibration are built by
+          stripping the <em>target's</em> RoPE from its ground-truth keys, so <code>W<sub class="s">K</sub></code>
+          is fit entirely in position-free space. Since <code>R<sub>&Theta;</sub></code> is orthogonal, the
+          inversion <code>R<sub>&Theta;</sub><sup>&minus;1</sup> = R<sub>&Theta;</sub><sup>&#8868;</sup></code>
+          is exact at negligible cost. Values carry no positional encoding and are mapped directly &mdash;
+          only keys need this step.</p>
+        </div>
+        <div class="panel">
+          <div class="panel-title">
+            <span>Live &mdash; exact 2D rotation block, one RoPE frequency pair</span>
+          </div>
+          <div class="btn-row" style="margin-bottom:1rem; gap:1.4em; flex-wrap:wrap;">
+            <div class="control" style="max-width:240px;">
+              <label for="ropeTs">source position t<sub class="s">s</sub> = <span id="ropeTsVal">5</span></label>
+              <input type="range" id="ropeTs" min="0" max="50" step="1" value="5">
+            </div>
+            <div class="control" style="max-width:240px;">
+              <label for="ropeTt">re-encode at target position t<sub class="t">t</sub> = <span id="ropeTtVal">20</span></label>
+              <input type="range" id="ropeTt" min="0" max="50" step="1" value="20">
+            </div>
+          </div>
+          <div class="grid-2">
+            <div class="stat"><span class="k">content vector (position-free)</span><span class="v mono" id="ropeContent">&mdash;</span></div>
+            <div class="stat"><span class="k">rotated at t<sub class="s">s</sub> (what the cache stores)</span><span class="v mono" id="ropeRoped">&mdash;</span></div>
+            <div class="stat"><span class="k">stripped back &mdash; recovers content exactly</span><span class="v mono" id="ropeStripped">&mdash;</span></div>
+            <div class="stat"><span class="k">re-encoded at t<sub class="t">t</sub> for the target</span><span class="v mono" id="ropeReencoded">&mdash;</span></div>
+          </div>
+          <p class="viz-caption">RoPE's rotation is block-diagonal 2&times;2 rotations across the head dim; this
+          demo shows one exact block, not an approximation. Stripping is exact (max residual vs. the original
+          content vector is printed below, and is at numerical-precision zero) because <code>R<sub>&Theta;</sub></code>
+          is orthogonal. The whole point of stripping at <code>t<sub class="s">s</sub></code> and re-encoding at a
+          <em>different</em> <code>t<sub class="t">t</sub></code>: the fitted weights never see position at all.</p>
+          <p class="mono" id="ropeResidual" style="font-size:.78rem; color:var(--ink-faint);"></p>
+        </div>
+      </div>
+    </section>
+
+    <section id="mlp">
+      <div class="section-inner">
+        <div class="eyebrow">06 &middot; &sect;4.4, Substituting MLP for ridge</div>
+        <h2>Where ridge fails, a small MLP recovers most of the gap</h2>
+        <p>A per-(target layer, head, K|V) MLP &mdash; two 1,024-unit ReLU hidden layers, trained with Adam
+        on the same MSE loss as ridge &mdash; is dropped in at inference in place of the linear map. The
+        only thing that changes versus &sect;03 is the mapper's functional form; calibration data and
+        downstream evaluation are identical.</p>
+        <div class="table-wrap">
+          <table>
+            <caption>Table 3 &mdash; Ridge vs. MLP HellaSwag retention</caption>
+            <thead><tr><th>Pair</th><th class="num">Ridge</th><th class="num">MLP</th><th class="num">&Delta;</th></tr></thead>
+            <tbody>
+              <tr><td>Qwen3 14B &rarr; 32B</td><td class="num">97.6%</td><td class="num">97.3%</td><td class="num">&minus;0.3 pp</td></tr>
+              <tr><td>Ministral 3B &rarr; 8B</td><td class="num">93.3%</td><td class="num">91.8%</td><td class="num">&minus;1.5 pp</td></tr>
+              <tr><td>Ministral 3B &rarr; 14B</td><td class="num">68.0%</td><td class="num">92.3%</td><td class="num" style="color:var(--accent-signal); font-weight:600;">+24.3 pp</td></tr>
+              <tr><td>Ministral 8B &rarr; 14B</td><td class="num">58.7%</td><td class="num">95.5%</td><td class="num" style="color:var(--accent-signal); font-weight:600;">+36.8 pp</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>On pairs where ridge already succeeds, the MLP slightly <em>underperforms</em> ridge. On pairs
+        where ridge fails, the MLP recovers HellaSwag retention by up to <strong>+36.8pp</strong>, pushing
+        all four pairs above 90%. The paper's reading: <strong>linear ridge is sufficient wherever the
+        cross-model KV relationship is already linear</strong>; the MLP helps only where ridge falls short,
+        not uniformly. &sect;07 explains mechanistically what the MLP changes.</p>
+      </div>
+    </section>
+
+    <section id="quality">
+      <div class="section-inner">
+        <div class="eyebrow">07 &middot; &sect;4.5, What determines transfer quality</div>
+        <h2>Calibration <code>R&sup2;</code> does not predict retention &mdash; attention-output cosine does</h2>
+        <p>Across the six matched-KV pairs evaluated in both directions, calibration <code>R&sup2;</code>
+        alone fails to predict per-pair outcomes: Llama 3.1 8B&rarr;70B fits ridge at
+        <code>R&sup2;<sub class="s">K</sub>=0.84</code> and retains 94% HellaSwag small-to-large but only
+        37% large-to-small; Ministral 3B&rarr;8B fits at the <em>same</em> <code>R&sup2;<sub class="s">K</sub>=0.84</code>
+        and retains 93% in <em>both</em> directions. The same fit quality, very different downstream
+        outcomes &mdash; because <code>R&sup2;</code> weights every channel equally, but attention doesn't:
+        it scores K against the target's queries and weights V by the resulting attention pattern.</p>
+        <div class="panel">
+          <div class="panel-title"><span>Attention-output cosine</span><span class="tag paper">verbatim definition</span></div>
+          <p style="margin-bottom:0;">Cosine similarity between the attention output computed from mapped KV
+          and from ground-truth KV, averaged over layers and heads. Across 12 matched-KV pair evaluations
+          from three families (six S&rarr;L and six L&rarr;S), mean cosine correlates with HellaSwag
+          retention at Pearson <code>r=+0.57</code>, while calibration-domain <code>R&sup2;<sub class="s">K</sub></code>
+          shows essentially no correlation (<code>r=&minus;0.20</code>).</p>
+        </div>
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-title"><span>K-concentration</span></div>
+            <p style="margin-bottom:0; font-size:.92rem;">Project the mapper's per-token K error onto the
+            right singular vectors of the target's per-head query matrix <code>Q<sub class="t">h</sub></code>,
+            weight each component by its matching squared singular value, divide by the mean error across
+            all components. Concentration &gt;1 means error lands where attention reads.</p>
+          </div>
+          <div class="panel">
+            <div class="panel-title"><span>V-concentration</span></div>
+            <p style="margin-bottom:0; font-size:.92rem;">Weight per-position V error by the squared
+            ground-truth attention weight at that position, divide by the mean per-position error.
+            Concentration &lt;1 means error lands where attention ignores it.</p>
+          </div>
+        </div>
+        <p>Comparing ridge to MLP on the same four pairs makes the mechanism concrete: on the pairs where
+        ridge falls short, the MLP substantially <em>lowers</em> K-concentration (&Delta;&asymp;&minus;2.5
+        avg) and <em>raises</em> attention-output cosine (&Delta;&asymp;+0.45) &mdash; it isn't fitting the
+        cache better everywhere, it's redistributing residual error <em>away</em> from the subspaces
+        attention actually reads.</p>
+        <div class="table-wrap">
+          <table>
+            <caption>Table 4 &mdash; per-pair shifts, MLP &minus; ridge (measured on HellaSwag tokens)</caption>
+            <thead><tr><th>Pair</th><th class="num">Ridge R&sup2;<sub>K</sub></th><th class="num">&Delta;R&sup2;<sub>K</sub></th><th class="num">Ridge HS</th><th class="num">&Delta;HS</th><th class="num">&Delta;K-conc</th><th class="num">&Delta;cosine</th></tr></thead>
+            <tbody>
+              <tr><td>Qwen3 14B&rarr;32B</td><td class="num">0.75</td><td class="num">&minus;0.05</td><td class="num">97.6%</td><td class="num">&minus;0.3pp</td><td class="num">&minus;0.03</td><td class="num">&minus;0.03</td></tr>
+              <tr><td>Ministral 3B&rarr;8B</td><td class="num">&minus;0.10</td><td class="num">+0.77</td><td class="num">93.3%</td><td class="num">&minus;1.5pp</td><td class="num">&minus;0.45</td><td class="num">+0.07</td></tr>
+              <tr><td style="font-weight:600;">Ministral 3B&rarr;14B</td><td class="num" style="font-weight:600;">&minus;7.81</td><td class="num" style="font-weight:600;">+7.62</td><td class="num">68.0%</td><td class="num" style="font-weight:600;">+24.3pp</td><td class="num" style="font-weight:600;">&minus;2.31</td><td class="num" style="font-weight:600;">+0.41</td></tr>
+              <tr><td style="font-weight:600;">Ministral 8B&rarr;14B</td><td class="num" style="font-weight:600;">&minus;3.22</td><td class="num" style="font-weight:600;">+3.08</td><td class="num">58.7%</td><td class="num" style="font-weight:600;">+36.8pp</td><td class="num" style="font-weight:600;">&minus;2.71</td><td class="num" style="font-weight:600;">+0.48</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Redistributing error is not sufficient on its own, though: on Ministral 3B&rarr;8B (a pair where
+        ridge already succeeds) the MLP improves both K-concentration and cosine and still <em>loses</em>
+        ground on HellaSwag. It only helps where the misplaced error was large enough to bind in the first
+        place.</p>
+        <div class="table-wrap" style="margin-top:1.6rem;">
+          <table>
+            <caption>Table 2 &mdash; mapper component ablation, Qwen3 14B&rarr;32B</caption>
+            <thead><tr><th>Configuration</th><th class="num">ARC-C</th><th class="num">HellaSwag</th><th class="num">WinoGrande</th><th class="num">MMLU</th><th class="num">GSM8K</th><th class="num">PPL</th></tr></thead>
+            <tbody>
+              <tr><td>Full (k=8, ridge, content-space)</td><td class="num">61.60</td><td class="num">80.70</td><td class="num">68.98</td><td class="num">78.09</td><td class="num">90.98<span style="color:var(--ink-faint);">*</span></td><td class="num">7.33</td></tr>
+              <tr><td>&minus; inference RoPE</td><td class="num">44.97</td><td class="num">75.39</td><td class="num">56.59</td><td class="num">25.79</td><td class="num">4.17</td><td class="num">7.70</td></tr>
+              <tr><td>&minus; all RoPE (fit + inference)</td><td class="num">61.09</td><td class="num">80.73</td><td class="num">68.59</td><td class="num">77.70</td><td class="num">90.98<span style="color:var(--ink-faint);">*</span></td><td class="num">7.35</td></tr>
+              <tr><td>&minus; RoPE &minus; cross-layer (k=1)</td><td class="num">27.65</td><td class="num">44.81</td><td class="num">51.78</td><td class="num">26.07</td><td class="num">0.38</td><td class="num">22.73</td></tr>
+              <tr><td>&minus; RoPE &minus; cross-layer &minus; ridge</td><td class="num">36.43</td><td class="num">62.26</td><td class="num">51.22</td><td class="num">51.26</td><td class="num">1.44</td><td class="num">9.86</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="viz-caption">*GSM8K column order as transcribed from the paper's Table 2; the MMLU/GSM8K
+        pair for the first two rows is unusually close, which the paper itself does not flag as an error.
+        Disabling inference-time RoPE re-rotation (row 2) collapses MMLU and GSM8K to near-random while
+        HellaSwag only drops &sim;5pp &mdash; content-space mapping is benchmark-specific, not uniformly
+        critical. Dropping cross-layer selection to k=1 (row 4) is the single largest collapse.</p>
+      </div>
+    </section>
+
+    <section id="multiturn">
+      <div class="section-inner">
+        <div class="eyebrow">08 &middot; &sect;4.6&ndash;4.7, Multi-turn drift &amp; latency</div>
+        <h2>Does accuracy drift across turns, and how much latency does the mapper actually save?</h2>
+        <p>Mid-conversation switching alternates between source and target across turns, so drift is
+        measured on Qwen3 14B&harr;32B with CoQA: 100 conversations, &sim;15 turns each, across five
+        domains, scored by F1 against ground truth. Drift at turn <code>t</code> is the F1 gap between the
+        target's standalone accuracy and the mapper's accuracy at the same turn.</p>
+        <div class="grid-2">
+          <div class="stat"><span class="k">small&rarr;large drift, turn 1&rarr;10</span><span class="v">widens by 1.7 pp</span></div>
+          <div class="stat"><span class="k">large&rarr;small drift</span><span class="v">grows linearly, 0.33 pp/turn</span></div>
+        </div>
+        <p>Both slopes are too small to cause cascading failure within ten turns on this evaluation, though
+        the linear large&rarr;small drift would still accumulate over very long sessions. Tuning
+        <code>k</code> specifically for the multi-turn task changes drift by at most 2.0pp.</p>
+        <div class="table-wrap" style="margin-top:1.4rem;">
+          <table>
+            <caption>Table 5 &mdash; re-prefill vs. KV cache transfer latency, Qwen3 14B&harr;32B</caption>
+            <thead><tr><th>Seq len</th><th class="num">S&rarr;L Mapper (ms)</th><th class="num">S&rarr;L Re-prefill (ms)</th><th class="num">Speedup</th><th class="num">L&rarr;S Mapper (ms)</th><th class="num">L&rarr;S Re-prefill (ms)</th><th class="num">Speedup</th></tr></thead>
+            <tbody>
+              <tr><td>64</td><td class="num">14.0</td><td class="num">61.7</td><td class="num">4&times;</td><td class="num">11.6</td><td class="num">39.2</td><td class="num">3&times;</td></tr>
+              <tr><td>8K</td><td class="num">67.8</td><td class="num">1154.8</td><td class="num">17&times;</td><td class="num">101.9</td><td class="num">501.0</td><td class="num">5&times;</td></tr>
+              <tr><td>32K</td><td class="num">277.6</td><td class="num">6975.3</td><td class="num">25&times;</td><td class="num">427.1</td><td class="num">2952.7</td><td class="num">7&times;</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>The large&rarr;small speedup widens with sequence length because the mapper's wall time grows
+        much slower than the receiver's re-prefill &mdash; the mapper is a per-layer batched matmul, not a
+        full transformer forward pass.</p>
+      </div>
+    </section>
+
+    <section id="worked">
+      <div class="section-inner">
+        <div class="eyebrow">09 &middot; Worked example</div>
+        <h2>Hand-verified: Eq. (4) on four scalar calibration tokens</h2>
+        <p>A minimal, fully checkable instance of Eq. (4): 1 source feature, 1 target feature, 4 calibration
+        tokens. <code>x = [1, 2, 3, 4]</code>, <code>y = [2.1, 3.9, 6.2, 7.8]</code> (roughly
+        <code>y&asymp;2x</code>, with noise), <code>&lambda;=0.01</code>.</p>
+        <div class="formula">x̄ = 2.5,&nbsp; ȳ = 5.0
+x<sub class="op">c</sub> = [&minus;1.5, &minus;0.5, 0.5, 1.5],&nbsp; y<sub class="op">c</sub> = [&minus;2.9, &minus;1.1, 1.2, 2.8]
+
+X<sup>&#8868;</sup>X = &sum; x<sub class="op">c,i</sub>&sup2; = 2.25+0.25+0.25+2.25 = 5.0
+X<sup>&#8868;</sup>Y = &sum; x<sub class="op">c,i</sub>y<sub class="op">c,i</sub> = 4.35+0.55+0.6+4.2 = 9.7
+
+W* = X<sup>&#8868;</sup>Y / (X<sup>&#8868;</sup>X + &lambda;) = 9.7 / 5.01 = 1.93613&hellip;
+b  = ȳ &minus; x̄&middot;W* = 5.0 &minus; 2.5&times;1.93613 = 0.15968&hellip;</div>
+        <p>Compare to plain OLS (<code>&lambda;=0</code>): <code>W*=9.7/5.0=1.94</code> exactly &mdash;
+        ridge moves the slope by less than 0.2% here, because <code>X<sup>&#8868;</sup>X=5.0</code> is
+        nowhere near singular. This is the "negligible fit bias" the paper describes for well-conditioned
+        fits, matching &sect;03's finding that a four-order-of-magnitude <code>&lambda;</code> sweep shows
+        wide flat regions. The live &sect;03 demo runs the identical closed-form solver &mdash; only the
+        input data differs (two correlated features there, engineered to actually stress-test conditioning).</p>
+        <div class="stat-row" id="workedStats"></div>
+      </div>
+    </section>
+
+    <section id="results">
+      <div class="section-inner">
+        <div class="eyebrow">10 &middot; &sect;4.2, Main results</div>
+        <h2>Six matched-KV pairs, three families: 42&ndash;98% average retention</h2>
+        <p>All pairs evaluated small&rarr;large, at each pair's selected <code>k</code>, full pipeline
+        (ridge + cross-layer selection + content-space mapping). Retention is
+        <code>(transfer accuracy)/(target standalone accuracy)&times;100%</code>; <code>Avg<sub>fn</sub></code>
+        is floor-normalized, placing chance at 0% and the target's own accuracy at 100% on every benchmark.</p>
+        <div class="table-wrap">
+          <table>
+            <caption>Table 1 &mdash; per-pair transfer retention at selected k</caption>
+            <thead><tr><th>Family</th><th>Pair (k)</th><th class="num">Avg</th><th class="num">Avg<sub>fn</sub></th><th class="num">ARC-C</th><th class="num">HellaSwag</th><th class="num">WinoGrande</th><th class="num">MMLU</th><th class="num">GSM8K</th></tr></thead>
+            <tbody>
+              <tr><td colspan="9" style="color:var(--ink-faint); font-family:var(--font-mono); font-size:.78rem;">chance floor &mdash; 25% / 25% / 50% / 25% / &asymp;0%</td></tr>
+              <tr style="background:var(--accent-signal-soft);"><td>Qwen3</td><td>14B&rarr;32B (8)</td><td class="num">97.6%</td><td class="num">96.3%</td><td class="num">101.0%</td><td class="num">97.6%</td><td class="num">98.5%</td><td class="num">95.0%</td><td class="num">95.6%</td></tr>
+              <tr style="background:var(--accent-signal-soft);"><td>Qwen3</td><td>8B&rarr;32B (12)</td><td class="num">87.5%</td><td class="num">80.7%</td><td class="num">94.0%</td><td class="num">95.2%</td><td class="num">91.0%</td><td class="num">88.5%</td><td class="num">68.8%</td></tr>
+              <tr style="background:var(--accent-signal-soft);"><td>Llama 3.1</td><td>8B&rarr;70B (20)</td><td class="num">72.8%</td><td class="num">62.9%</td><td class="num">90.9%</td><td class="num">94.4%</td><td class="num">87.1%</td><td class="num">73.3%</td><td class="num">18.2%</td></tr>
+              <tr style="background:var(--accent-signal-soft);"><td>Ministral 3</td><td>3B&rarr;8B (all)</td><td class="num">76.2%</td><td class="num">65.9%</td><td class="num">90.6%</td><td class="num">93.3%</td><td class="num">91.3%</td><td class="num">69.4%</td><td class="num">36.6%</td></tr>
+              <tr style="background:var(--accent-error-soft);"><td>Ministral 3</td><td>3B&rarr;14B (20)</td><td class="num">44.2%</td><td class="num">14.7%</td><td class="num">43.6%</td><td class="num">68.0%</td><td class="num">74.0%</td><td class="num">32.0%</td><td class="num">3.2%</td></tr>
+              <tr style="background:var(--accent-error-soft);"><td>Ministral 3</td><td>8B&rarr;14B (12)</td><td class="num">41.6%</td><td class="num">11.1%</td><td class="num">40.7%</td><td class="num">58.7%</td><td class="num">74.2%</td><td class="num">32.7%</td><td class="num">1.6%</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="legend">
+          <span><span class="sw" style="background:var(--accent-signal);"></span>Tier 1 &mdash; four pairs, 73&ndash;98% avg retention</span>
+          <span><span class="sw" style="background:var(--accent-error);"></span>Tier 2 &mdash; two pairs degrade sharply, 42&ndash;44%</span>
+        </div>
+        <p style="margin-top:1rem;">Matched KV correlates with success but does not guarantee it &mdash;
+        both failing pairs are Ministral-family and both target the same 14B model, which &sect;07's
+        attention-cosine analysis (not raw <code>R&sup2;</code>) is what actually explains.</p>
+      </div>
+    </section>
+
+    <section id="sources">
+      <div class="section-inner">
+        <div class="eyebrow">11 &middot; Sources &amp; what's exact vs. constructed</div>
+        <h2>Provenance</h2>
+        <ul class="src-list">
+          <li><strong>Cross-Model KV Cache Transfer in LLM Families: A Closed-Form Linear Mapping for
+          Prefill Reuse</strong>. <span class="mono">arXiv:2608.03893</span>. Equations (1)&ndash;(5), the
+          matched-KV definition, the RoPE content-space formula, and every numeric table above are
+          transcribed directly from the paper's published LaTeX source (via its arXiv HTML rendering), not
+          paraphrased from a summary.</li>
+        </ul>
+        <div class="callout">
+          <p><strong>Exact to the paper:</strong> Eq. (1) task-preservation objective, Eq. (2) single-source
+          probe, Eq. (3)&ndash;(4) per-head ridge and its closed form, Eq. (5) cross-layer concatenation, the
+          RoPE strip/re-encode formula (&sect;3.3), the matched-KV definition, attention-output cosine and
+          K-/V-concentration definitions (&sect;4.5), and Tables 1&ndash;5 in full.</p>
+        </div>
+        <div class="callout">
+          <p><strong>Disclosed substitution / simplification:</strong> the &sect;02 and &sect;04 R&sup2;
+          heatmaps are synthetic 8&times;8 grids built to reproduce the four qualitative patterns the paper
+          describes (diagonal concentration, sharper for closer pairs, RoPE contamination, K&gt;V), not
+          digitized Figure 2 data &mdash; the paper doesn't publish the underlying numbers. The &sect;04
+          top-<code>k</code> demo ranks source layers by independent marginal R&sup2; rather than running
+          true greedy forward regression (each step re-fit against the growing selected set), which the
+          paper actually does.</p>
+        </div>
+        <div class="callout">
+          <p><strong>Constructed for this primer:</strong> the &sect;03 toy ridge calibration set (6 tokens,
+          2 correlated features) and the &sect;05 RoPE demo's content vector &mdash; illustrative inputs
+          chosen to exercise the exact paper formulas, not values from the paper itself.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="footer-note">
+  A companion to <a href="../rdkv/rdkv-primer.html">the RDKV primer</a> and
+  <a href="../turbo-quant/turboquant-primer.html">the TurboQuant primer</a> in the same repository &mdash;
+  all three treat KV-cache serving cost as a rate/representation problem with a closed-form solution,
+  applied to different points in the pipeline: quantization, joint eviction+quantization, and now
+  cross-model reuse.
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ---------- theme toggle ---------- */
+var root=document.documentElement;
+var stored=null;
+try{ stored=localStorage.getItem('kvtransfer-theme'); }catch(e){}
+if(stored) root.setAttribute('data-theme', stored);
+document.getElementById('themeToggle').addEventListener('click', function(){
+  var cur=root.getAttribute('data-theme');
+  var next = cur==='dark' ? 'light' : (cur==='light' ? null : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'light':'dark'));
+  if(next){ root.setAttribute('data-theme', next); } else { root.removeAttribute('data-theme'); }
+  try{ localStorage.setItem('kvtransfer-theme', next || ''); }catch(e){}
+});
+function cssVar(name){ return getComputedStyle(root).getPropertyValue(name).trim(); }
+
+/* ---------- TOC active-section tracking ---------- */
+var tocLinks=Array.prototype.slice.call(document.querySelectorAll('.toc-list a'));
+var sections=tocLinks.map(function(a){ return document.querySelector(a.getAttribute('href')); });
+function updateActive(){
+  var y=window.scrollY+120;
+  var idx=0;
+  for(var i=0;i<sections.length;i++){ if(sections[i] && sections[i].offsetTop<=y) idx=i; }
+  tocLinks.forEach(function(a,i){ a.classList.toggle('active', i===idx); });
+}
+window.addEventListener('scroll', updateActive, {passive:true});
+updateActive();
+
+/* ============================================================
+   Small linear-algebra helpers, used exactly as the paper's
+   Eq. (4) prescribes: W* = (X'X + lambda I)^-1 X'Y, fit on
+   centered X, Y; bias recovered as b = Ybar - Xbar W*.
+   Generic Gauss-Jordan inverse -- fine at the toy sizes used here.
+   ============================================================ */
+function zeros(r,c){ var m=new Array(r); for(var i=0;i<r;i++){ m[i]=new Array(c).fill(0); } return m; }
+function matT(A){ var r=A.length,c=A[0].length,T=zeros(c,r); for(var i=0;i<r;i++) for(var j=0;j<c;j++) T[j][i]=A[i][j]; return T; }
+function matMul(A,B){
+  var r=A.length,k=B.length,c=B[0].length,C=zeros(r,c);
+  for(var i=0;i<r;i++) for(var j=0;j<c;j++){ var s=0; for(var t=0;t<k;t++) s+=A[i][t]*B[t][j]; C[i][j]=s; }
+  return C;
+}
+function matAddScaledI(A,lambda){
+  var n=A.length,B=A.map(function(row){return row.slice();});
+  for(var i=0;i<n;i++) B[i][i]+=lambda;
+  return B;
+}
+function matInv(A){
+  var n=A.length;
+  var M=A.map(function(row,i){ var out=row.slice(); for(var j=0;j<n;j++) out.push(i===j?1:0); return out; });
+  for(var col=0; col<n; col++){
+    var piv=col;
+    for(var r=col+1;r<n;r++){ if(Math.abs(M[r][col])>Math.abs(M[piv][col])) piv=r; }
+    var tmp=M[col]; M[col]=M[piv]; M[piv]=tmp;
+    var pv=M[col][col]||1e-12;
+    for(var j=0;j<2*n;j++) M[col][j]/=pv;
+    for(var r2=0;r2<n;r2++){
+      if(r2===col) continue;
+      var f=M[r2][col];
+      for(var j2=0;j2<2*n;j2++) M[r2][j2]-=f*M[col][j2];
+    }
+  }
+  return M.map(function(row){ return row.slice(n); });
+}
+/* Eq. (4): closed-form ridge, fit on centered X,Y; returns {W,b} */
+function ridgeFit(X, Y, lambda){
+  var n=X.length, dx=X[0].length, dy=Y[0].length;
+  var xbar=new Array(dx).fill(0), ybar=new Array(dy).fill(0);
+  for(var i=0;i<n;i++){
+    for(var j=0;j<dx;j++) xbar[j]+=X[i][j]/n;
+    for(var j2=0;j2<dy;j2++) ybar[j2]+=Y[i][j2]/n;
+  }
+  var Xc=X.map(function(row){ return row.map(function(v,j){ return v-xbar[j]; }); });
+  var Yc=Y.map(function(row){ return row.map(function(v,j){ return v-ybar[j]; }); });
+  var Xt=matT(Xc);
+  var XtX=matAddScaledI(matMul(Xt,Xc), lambda);
+  var XtY=matMul(Xt,Yc);
+  var W=matMul(matInv(XtX), XtY);
+  var XbarW=matMul([xbar], W)[0];
+  var b=ybar.map(function(v,j){ return v-XbarW[j]; });
+  return {W:W, b:b, xbar:xbar, ybar:ybar};
+}
+function predict(X, fit){
+  return X.map(function(row){
+    var out=fit.b.slice();
+    for(var j=0;j<row.length;j++){ for(var k2=0;k2<out.length;k2++){ out[k2]+=row[j]*fit.W[j][k2]; } }
+    return out;
+  });
+}
+
+/* ---------- hero: Table 5 latency lookup, paper-exact ---------- */
+var table5={
+  sl:{64:{m:14.0,r:61.7}, 8192:{m:67.8,r:1154.8}, 32768:{m:277.6,r:6975.3}},
+  ls:{64:{m:11.6,r:39.2}, 8192:{m:101.9,r:501.0}, 32768:{m:427.1,r:2952.7}}
+};
+var heroState={dir:'sl', len:8192};
+function renderHero(){
+  var v=table5[heroState.dir][heroState.len];
+  var maxV=Math.max(v.m, v.r);
+  var el=document.getElementById('heroBars');
+  el.innerHTML='';
+  [{lbl:'Mapper', val:v.m, color:cssVar('--tgt')}, {lbl:'Re-prefill', val:v.r, color:cssVar('--src')}].forEach(function(d){
+    var bar=document.createElement('div');
+    bar.className='bar';
+    var h=Math.max(4, (d.val/maxV)*100);
+    bar.style.height=h+'%';
+    bar.style.background=d.color;
+    var lbl=document.createElement('span'); lbl.className='lbl'; lbl.textContent=d.val.toFixed(1)+'ms';
+    var idx=document.createElement('span'); idx.className='idx'; idx.textContent=d.lbl;
+    bar.appendChild(lbl); bar.appendChild(idx);
+    el.appendChild(bar);
+  });
+  document.getElementById('heroSpeedLbl').textContent=(v.r/v.m).toFixed(1)+'x speedup';
+}
+document.getElementById('heroDir').addEventListener('click', function(e){
+  var btn=e.target.closest('.pill'); if(!btn) return;
+  Array.prototype.forEach.call(this.children, function(b){ b.classList.toggle('active', b===btn); });
+  heroState.dir=btn.getAttribute('data-dir');
+  renderHero();
+});
+document.getElementById('heroLen').addEventListener('click', function(e){
+  var btn=e.target.closest('.pill'); if(!btn) return;
+  Array.prototype.forEach.call(this.children, function(b){ b.classList.toggle('active', b===btn); });
+  heroState.len=parseInt(btn.getAttribute('data-len'),10);
+  renderHero();
+});
+renderHero();
+
+/* ---------- section 02 + 04: illustrative R^2 heatmaps ---------- */
+function lerpColor(a,b,t){
+  function hex(c){ c=c.replace('#',''); return [parseInt(c.substr(0,2),16),parseInt(c.substr(2,2),16),parseInt(c.substr(4,2),16)]; }
+  function toHexPart(v){ v=Math.max(0,Math.min(255,Math.round(v))); var s=v.toString(16); return s.length<2?'0'+s:s; }
+  var ca=hex(a), cb=hex(b);
+  var r=ca[0]+(cb[0]-ca[0])*t, g=ca[1]+(cb[1]-ca[1])*t, bl=ca[2]+(cb[2]-ca[2])*t;
+  return '#'+toHexPart(r)+toHexPart(g)+toHexPart(bl);
+}
+function colorHexFromVar(name){
+  var v=cssVar(name);
+  if(v.indexOf('#')===0) return v.length>7?v.substr(0,7):v;
+  return v;
+}
+function r2Color(v){
+  return lerpColor(colorHexFromVar('--surface-3'), colorHexFromVar('--tgt'), Math.max(0,Math.min(1,v)));
+}
+var N_LAYERS=8;
+function buildHeat(sharpness, peak, floor){
+  /* row = source layer, col = target layer; diagonal-peaked, decaying with |row-col| */
+  var m=[];
+  for(var r=0;r<N_LAYERS;r++){
+    var row=[];
+    for(var c=0;c<N_LAYERS;c++){
+      var dist=Math.abs(r-c)/N_LAYERS;
+      var v=floor + (peak-floor)*Math.exp(-sharpness*dist*dist*N_LAYERS);
+      row.push(Math.max(0, Math.min(1, v)));
+    }
+    m.push(row);
+  }
+  return m;
+}
+var heatData={
+  rope:buildHeat(2.2, 0.62, 0.05),
+  stripped:buildHeat(3.4, 0.81, 0.03),
+  v:buildHeat(2.6, 0.58, 0.02)
+};
+var heatCaptions={
+  rope:'K_rope: diagonal present but diffuse -- positional rotation contaminates the linear fit.',
+  stripped:'K_stripped: sharpest diagonal of the three -- stripping RoPE is what motivates Sec. 3.3.',
+  v:'V: lower peak than either K variant (the paper reports a ~0.2 head-averaged R2 gap), no RoPE to strip.'
+};
+var currentHeatKey='stripped';
+function renderHeat(){
+  var grid=document.getElementById('heatGrid');
+  grid.innerHTML='';
+  var data=heatData[currentHeatKey];
+  for(var r=0;r<N_LAYERS;r++){
+    for(var c=0;c<N_LAYERS;c++){
+      var cell=document.createElement('div');
+      cell.className='heat-cell';
+      cell.style.background=r2Color(data[r][c]);
+      cell.title='source layer '+(r+1)+' -> target layer '+(c+1)+': R2='+data[r][c].toFixed(2);
+      grid.appendChild(cell);
+    }
+  }
+  document.getElementById('heatCaption').textContent=heatCaptions[currentHeatKey];
+  renderCrossLayer();
+}
+document.getElementById('heatToggle').addEventListener('click', function(e){
+  var btn=e.target.closest('.pill'); if(!btn) return;
+  Array.prototype.forEach.call(this.children, function(b){ b.classList.toggle('active', b===btn); });
+  currentHeatKey=btn.getAttribute('data-c');
+  renderHeat();
+});
+
+/* ---------- section 04: top-k over the stripped heatmap ---------- */
+var xlTargetSel=document.getElementById('xlTarget');
+for(var ti=0; ti<N_LAYERS; ti++){
+  var opt=document.createElement('option'); opt.value=ti; opt.textContent='target layer '+(ti+1);
+  xlTargetSel.appendChild(opt);
+}
+xlTargetSel.value=3;
+function renderCrossLayer(){
+  var data=heatData.stripped;
+  var target=parseInt(xlTargetSel.value,10);
+  var k=parseInt(document.getElementById('xlK').value,10);
+  document.getElementById('xlKVal').textContent=k;
+  var col=[];
+  for(var r=0;r<N_LAYERS;r++) col.push({r:r, v:data[r][target]});
+  col.sort(function(a,b){ return b.v-a.v; });
+  var selected={};
+  for(var i=0;i<k;i++) selected[col[i].r]=true;
+
+  var grid=document.getElementById('xlGrid');
+  grid.innerHTML='';
+  for(var r2=0;r2<N_LAYERS;r2++){
+    for(var c2=0;c2<N_LAYERS;c2++){
+      var cell=document.createElement('div');
+      cell.className='heat-cell'+((c2===target && selected[r2])?' sel':'');
+      cell.style.background=r2Color(data[r2][c2]);
+      cell.title='source layer '+(r2+1)+' -> target layer '+(c2+1)+': R2='+data[r2][c2].toFixed(2);
+      grid.appendChild(cell);
+    }
+  }
+}
+xlTargetSel.addEventListener('change', renderCrossLayer);
+document.getElementById('xlK').addEventListener('input', renderCrossLayer);
+renderHeat();
+
+/* ---------- section 03: live ridge demo, Eq. (4) ---------- */
+var ridgeX=[[1,1],[2,2],[3,3.1],[4,3.9],[5,5.2],[6,7]];
+var ridgeY=[[3],[5],[7],[9],[11],[12]];
+function renderRidge(){
+  var logLambda=parseFloat(document.getElementById('ridgeLambda').value);
+  var lambda=Math.pow(10, logLambda);
+  document.getElementById('ridgeLambdaLbl').textContent='lambda = '+lambda.toFixed(4);
+  var fit=ridgeFit(ridgeX, ridgeY, lambda);
+  var preds=predict(ridgeX, fit);
+
+  var statsEl=document.getElementById('ridgeStats');
+  statsEl.innerHTML='';
+  [
+    {k:'W (2x1)', v:'['+fit.W[0][0].toFixed(3)+', '+fit.W[1][0].toFixed(3)+']'},
+    {k:'b', v:fit.b[0].toFixed(3)},
+    {k:'|W| (L2 norm)', v:Math.sqrt(fit.W[0][0]*fit.W[0][0]+fit.W[1][0]*fit.W[1][0]).toFixed(3)}
+  ].forEach(function(s){
+    var d=document.createElement('div'); d.className='stat';
+    d.innerHTML='<span class="v mono">'+s.v+'</span><span class="k">'+s.k+'</span>';
+    statsEl.appendChild(d);
+  });
+
+  var barsEl=document.getElementById('ridgeBars');
+  barsEl.innerHTML='';
+  var maxV=Math.max.apply(null, ridgeY.map(function(y){return y[0];}).concat(preds.map(function(p){return p[0];})));
+  for(var i=0;i<ridgeY.length;i++){
+    var pairWrap=document.createElement('div');
+    pairWrap.style.cssText='flex:1; display:flex; gap:2px; align-items:flex-end; min-width:6px;';
+    var actual=document.createElement('div'); actual.className='bar';
+    actual.style.height=Math.max(4,(ridgeY[i][0]/maxV)*100)+'%';
+    actual.style.background=cssVar('--src');
+    var idx=document.createElement('span'); idx.className='idx'; idx.textContent='t'+(i+1);
+    actual.appendChild(idx);
+    var pred=document.createElement('div'); pred.className='bar';
+    pred.style.height=Math.max(4,(preds[i][0]/maxV)*100)+'%';
+    pred.style.background=cssVar('--tgt');
+    var lbl=document.createElement('span'); lbl.className='lbl'; lbl.textContent=preds[i][0].toFixed(2);
+    pred.appendChild(lbl);
+    pairWrap.appendChild(actual); pairWrap.appendChild(pred);
+    barsEl.appendChild(pairWrap);
+  }
+}
+document.getElementById('ridgeLambda').addEventListener('input', renderRidge);
+renderRidge();
+
+/* ---------- section 05: exact 2D RoPE rotation block ---------- */
+var ropeContentVec=[1.0, 0.3];
+var ROPE_THETA=0.12; /* radians per position, single toy frequency */
+function rotate2D(vec, angle){
+  var c=Math.cos(angle), s=Math.sin(angle);
+  return [vec[0]*c - vec[1]*s, vec[0]*s + vec[1]*c];
+}
+function fmtVec(v){ return '['+v[0].toFixed(4)+', '+v[1].toFixed(4)+']'; }
+function renderRope(){
+  var ts=parseInt(document.getElementById('ropeTs').value,10);
+  var tt=parseInt(document.getElementById('ropeTt').value,10);
+  document.getElementById('ropeTsVal').textContent=ts;
+  document.getElementById('ropeTtVal').textContent=tt;
+
+  var roped=rotate2D(ropeContentVec, ROPE_THETA*ts);
+  var stripped=rotate2D(roped, -ROPE_THETA*ts); /* R^-1(t) = R(-t), exact since orthogonal */
+  var reencoded=rotate2D(stripped, ROPE_THETA*tt);
+
+  document.getElementById('ropeContent').textContent=fmtVec(ropeContentVec);
+  document.getElementById('ropeRoped').textContent=fmtVec(roped);
+  document.getElementById('ropeStripped').textContent=fmtVec(stripped);
+  document.getElementById('ropeReencoded').textContent=fmtVec(reencoded);
+
+  var residual=Math.sqrt(Math.pow(stripped[0]-ropeContentVec[0],2)+Math.pow(stripped[1]-ropeContentVec[1],2));
+  document.getElementById('ropeResidual').textContent='max residual, stripped vs. original content vector: '+residual.toExponential(2)+' (numerical-precision zero)';
+}
+document.getElementById('ropeTs').addEventListener('input', renderRope);
+document.getElementById('ropeTt').addEventListener('input', renderRope);
+renderRope();
+
+/* ---------- section 09: worked example, live-computed to confirm the hand arithmetic ---------- */
+(function(){
+  var X=[[1],[2],[3],[4]], Y=[[2.1],[3.9],[6.2],[7.8]];
+  var fit=ridgeFit(X, Y, 0.01);
+  var fitOLS=ridgeFit(X, Y, 0.0);
+  var el=document.getElementById('workedStats');
+  [
+    {k:'W* (ridge, lambda=0.01)', v:fit.W[0][0].toFixed(5)},
+    {k:'b (ridge)', v:fit.b[0].toFixed(5)},
+    {k:'W* (OLS, lambda=0)', v:fitOLS.W[0][0].toFixed(5)},
+    {k:'ridge vs OLS shift', v:(Math.abs(fit.W[0][0]-fitOLS.W[0][0])/fitOLS.W[0][0]*100).toFixed(3)+'%'}
+  ].forEach(function(s){
+    var d=document.createElement('div'); d.className='stat';
+    d.innerHTML='<span class="v mono">'+s.v+'</span><span class="k">'+s.k+'</span>';
+    el.appendChild(d);
+  });
+})();
+
+})();
+</script>
