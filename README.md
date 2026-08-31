@@ -53,10 +53,8 @@ result's diagnosis and how to reproduce these numbers.
 
 **Paper**: [Rate-Distortion Bit Allocation for Joint Eviction and Quantization of the KV Cache](https://arxiv.org/abs/2605.08317) (arXiv:2605.08317)
 
-RDKV treats KV cache eviction and quantization as the same operation — bit-width assignment — evaluated at different depths (0 bits = evicted). Phase 1 (implemented): closed-form continuous water-filling (Theorem 3.3), discrete MCKP bit allocation via Lagrangian bisection (Algorithm 2), per-unit weight computation (Propositions 3.1/3.2), and the three-stage allocation pipeline (Algorithm 1, Stages 1-3). Pure PyTorch, no custom GPU kernel.
+RDKV treats KV cache eviction and quantization as the same operation — bit-width assignment — evaluated at different depths (0 bits = evicted). Implemented end to end: closed-form continuous water-filling (Theorem 3.3), discrete MCKP bit allocation via Lagrangian bisection (Algorithm 2), per-unit weight computation (Propositions 3.1/3.2), the three-stage allocation pipeline (Algorithm 1 Stages 1-3), TriZone packed storage (Algorithm 1 Stage 4), and a fused-dequantization decode kernel (Eq. 7) that never materializes a dequantized FP16 K tile.
 
-**Not yet implemented (Phase 2)**: TriZone packing and the fused-dequantization attention kernel (Algorithm 1, Stage 4).
-
-**Disclosed approximation**: Phase 1 uses the analytic Bennett curve `σ_u · 2^(−b)` as a stand-in for the paper's empirically-calibrated per-coordinate distortion table (Appendix B); see [`rdkv/README.md`](rdkv/README.md).
+**Disclosed approximation**: the empirically-calibrated per-coordinate distortion table from the paper's Appendix B is stood in for by the analytic Bennett curve `σ_u · 2^(−b)`; see [`rdkv/README.md`](rdkv/README.md).
 
 See [`rdkv/rdkv-primer.html`](rdkv/rdkv-primer.html) for the math derivation, [`docs/superpowers/specs/2026-08-31-rdkv-design.md`](docs/superpowers/specs/2026-08-31-rdkv-design.md) for the full spec, and [`rdkv/README.md`](rdkv/README.md) for install/test instructions.
