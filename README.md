@@ -59,6 +59,6 @@ RDKV treats KV cache eviction and quantization as the same operation — bit-wid
 
 **Disclosed gap**: TriZone's Zone A(V) rows are grouped by target bit-width but not yet actually quantized or byte-packed (full float32 storage); only Zone A(K) is really quantized. See [`rdkv/README.md`](rdkv/README.md).
 
-**Benchmarks** (RTX 4070 Laptop GPU): the fused Triton decode kernel beats the native backend by 1.1x-1.6x across most cache sizes/head dims tested, with one confirmed regression (0.68x) at `d=64, n_kept=20000` — see [`rdkv/README.md`](rdkv/README.md#benchmarks) for the full tables, the allocation-vs-budget tradeoff, and a code-level (not yet profiled) explanation for the regression.
+**Benchmarks** (RTX 4070 Laptop GPU, AC power, 8 runs/config): the fused Triton decode kernel beats the native backend consistently, 1.16x-1.57x across every cache size/head dim tested — see [`rdkv/README.md`](rdkv/README.md#benchmarks) for the full tables, the allocation-vs-budget tradeoff, and a root-caused writeup of an earlier "regression" that turned out to be a battery-power measurement artifact, not a real kernel defect.
 
 See [`rdkv/rdkv-primer.html`](rdkv/rdkv-primer.html) for the math derivation, [`docs/superpowers/specs/2026-08-31-rdkv-design.md`](docs/superpowers/specs/2026-08-31-rdkv-design.md) for the full spec, and [`rdkv/README.md`](rdkv/README.md) for install/test instructions.

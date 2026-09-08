@@ -71,51 +71,55 @@ are bit-packed at their target widths, which isn't implemented yet (see
 the disclosed gap above).
 
 **Decode latency, native vs. fused-kernel backend** (RTX 4070 Laptop GPU,
-`torch==2.11.0+cu130`, `triton==3.8.0`, synthetic packed cache,
-`--repeats 50`, mean of `--repeats` timed calls after one warm-up call):
+`torch==2.11.0+cu130`, `triton==3.8.0`, synthetic packed cache, **on AC
+power** -- see the power-state note below for why that matters. 8
+independent runs per config, `--repeats 50` each; native (cuda)/kernel
+(cuda) columns are mean +/- stdev across those 8 runs):
 
-| d | n_kept | native (cpu) | native (cuda) | kernel (cuda) | kernel speedup |
-|---|---|---|---|---|---|
-| 64 | 50 | 0.23ms | 0.85ms | 0.68ms | 1.25x |
-| 64 | 200 | 0.38ms | 1.19ms | 0.73ms | 1.64x |
-| 64 | 1,000 | 0.47ms | 0.86ms | 0.65ms | 1.32x |
-| 64 | 5,000 | 0.88ms | 0.91ms | 0.80ms | 1.13x |
-| 64 | 20,000 | 2.81ms | 0.85ms | 1.24ms | **0.68x (regression)** |
-| 128 | 50 | 0.25ms | 0.88ms | 0.71ms | 1.25x |
-| 128 | 200 | 0.45ms | 0.84ms | 0.79ms | 1.06x |
-| 128 | 1,000 | 0.60ms | 1.00ms | 0.72ms | 1.38x |
-| 128 | 5,000 | 1.32ms | 0.77ms | 0.72ms | 1.08x |
-| 128 | 20,000 | 5.49ms | 1.21ms | 0.81ms | 1.49x |
+| d | n_kept | native (cuda) | kernel (cuda) | speedup |
+|---|---|---|---|---|
+| 64 | 50 | 0.95 +/- 0.16ms | 0.76 +/- 0.08ms | 1.25x |
+| 64 | 200 | 0.88 +/- 0.04ms | 0.71 +/- 0.04ms | 1.24x |
+| 64 | 1,000 | 0.91 +/- 0.05ms | 0.74 +/- 0.04ms | 1.24x |
+| 64 | 5,000 | 0.88 +/- 0.03ms | 0.74 +/- 0.02ms | 1.19x |
+| 64 | 20,000 | 0.88 +/- 0.02ms | 0.76 +/- 0.03ms | 1.16x |
+| 128 | 50 | 0.91 +/- 0.07ms | 0.71 +/- 0.03ms | 1.28x |
+| 128 | 200 | 0.95 +/- 0.14ms | 0.76 +/- 0.12ms | 1.24x |
+| 128 | 1,000 | 0.89 +/- 0.03ms | 0.71 +/- 0.03ms | 1.26x |
+| 128 | 5,000 | 0.84 +/- 0.03ms | 0.71 +/- 0.03ms | 1.18x |
+| 128 | 20,000 | 1.25 +/- 1.03ms | 0.80 +/- 0.03ms | 1.57x |
 
-The kernel backend wins in every configuration except `d=64, n_kept=20000`,
-which reproduces as a real regression (not measurement noise -- confirmed
-at both `--repeats 20` and `--repeats 50`), not just a one-off.
+The kernel backend wins in all 10 configurations, consistently, by
+1.16x-1.57x. Note `d=128, n_kept=20000`'s native stdev (1.03ms on a
+0.87-0.91ms typical value across other runs) -- one of its 8 runs hit a
+single high-latency outlier; the kernel backend's stdev stayed tight
+(0.03ms) across the same 8 runs at that config, i.e. on AC power the
+*native* backend was the noisier one, not the kernel.
 
-**Profiling follow-up.** Only `_fused_zone_a_scores` (the K-dequantization
-fusion itself) runs as a single Triton kernel; the surrounding
-`fused_packed_decode` glue (per-bit-width `searchsorted` gathers,
-`aten::index`, `torch.cat` for Zone A(V)/B, softmax+matmul) is still
-several small PyTorch/CUDA calls. A `torch.profiler` CUDA-event breakdown
-confirmed part of this: across every config profiled (`d=64,n=20000`;
-`d=128,n=20000`; `d=64,n=1000`), that glue consistently cost ~1.7-1.9ms of
-CUDA time versus the fused K-score kernel's own ~0.5ms, and the glue cost
-barely moved with `d` or `n_kept` -- so the kernel backend's win margin is
-set mostly by this largely-fixed overhead, not by how much work the fused
-kernel itself avoids.
-
-That much is solid. What the profiling pass could **not** do is confirm
-*why specifically* `d=64, n_kept=20000` regresses while `d=128, n_kept=20000`
-doesn't: an ad hoc profiling script's own native-vs-kernel timings for that
-exact config did not match `run_perf_benchmark.py`'s harness numbers for
-the same config (opposite direction: the harness measured kernel slower
-than native there, the profiling script measured kernel faster) --
-most likely because the profiling script skipped a dedicated warm-up call
-for the native backend and ran several configs back-to-back in one
-process, which can leave GPU/allocator state different from
-`run_perf_benchmark.py`'s per-config isolation. Rather than pick whichever
-number looks better, this discrepancy is disclosed as unresolved: treat the
-`d=64, n_kept=20000` regression as real (reproduced twice, in the actual
-benchmark harness) but its root cause as still open. Re-profile with
-matched warm-up/isolation before relying on the kernel backend at small
-`d` with very large caches, or before trusting any specific explanation
-for the regression.
+**Power-state note (root-caused via `superpowers:systematic-debugging`).**
+An earlier version of this table, gathered while the laptop was running on
+**battery power**, reported a reproducible-looking 0.68x regression at
+`d=64, n_kept=20000` -- but that claim was wrong. Root-causing it: calling
+the benchmark harness's own `benchmark_config()` directly for that exact
+config showed the kernel *winning*; three consecutive full-script battery
+runs each disagreed on which config (if any) "regressed"; GPU clocks were
+confirmed stable (ruling out thermal/boost-ramp effects) via
+`nvidia-smi` sampling during a run; and switching to pure on-device
+`torch.cuda.Event` timing (removing host-side Python/OS scheduling from
+the measurement) *still* showed the same config's full latency
+distribution shift in one battery trial and none in the next -- a max
+outlier of 8.2ms against a ~1ms typical value. `nvidia-smi` showed the GPU
+pinned at `pstate=P3` and never exceeding 1980MHz (its boost max is
+3105MHz) throughout every battery run. Re-running the identical sweep
+twice on AC power (`pstate=P0`) produced consistently tighter, lower
+latencies and the kernel winning nearly everywhere, confirmed again with
+`torch.cuda.Event` timing on the previously-worst config. Root cause:
+these decode calls are sub-2ms, and on battery power this laptop's GPU
+runs in a throttled power state (P3, capped well below its boost clock)
+that appears to transition/stall more unpredictably under Windows' WDDM
+driver scheduling than the stable P0 state AC power allows -- at this
+timescale, that's enough occasional tail latency to flip which backend
+looks faster in a mean-of-50 comparison. This was a measurement artifact,
+not a kernel or architecture defect; the original "confirmed regression"
+claim in this README was incorrect and has been corrected above.
+**If benchmarking this on a laptop, plug into AC power first.**
